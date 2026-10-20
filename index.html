@@ -1,0 +1,1994 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="only light">
+<title>Gruntz</title>
+<link rel="icon" href="icons/favicon.ico" sizes="any">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#3a352d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gruntz">
+<meta name="description" content="Unofficial fan implementation of the GRUNTZ board game for personal play. Works offline.">
+<style>
+:root{--paper:#efe7d6;--ink:#2b2620;--muted:#6d6457;--line:#d4c6a8;--accent:#b8352b;--gold:#f2c230;--blue:#4f8fe0;--green:#8fd14f;--dark:#24221f}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--dark);color:var(--ink);font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+button,.lbtn{font:inherit;color:var(--ink);background:#fbf6ea;border:1px solid #bfae8c;border-radius:10px;padding:8px 12px;min-height:40px;cursor:pointer;box-shadow:0 1px 0 #0002}
+button:hover:not(:disabled),.lbtn:hover{background:#fff}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:#b8352b;color:#fff;border-color:#8c241d;font-weight:700}
+button.primary:hover:not(:disabled){background:#cc4135}
+button.armed{background:#e0a216;border-color:#9b6f0b;color:#1b1407}
+button.ghost{background:transparent;border-color:transparent;box-shadow:none;color:inherit}
+button.small{min-height:32px;padding:4px 10px;font-size:13px}
+[hidden]{display:none!important}
+
+/* ---------- game layout ---------- */
+#app{display:flex;flex-direction:column;height:100dvh}
+#top{flex:none;display:flex;align-items:center;gap:8px;height:46px;padding:0 8px;background:#3a352d;color:#f3ead6;box-shadow:0 2px 6px #0006;z-index:2}
+#top button{color:#f3ead6;font-size:20px;min-height:40px;min-width:40px}
+#topTitle{font-weight:800;letter-spacing:.12em;font-family:"Stencil","Impact","Arial Black",sans-serif}
+#topStars{margin-left:auto;font-size:14px;white-space:nowrap}
+#topStars .ts{margin-left:10px}
+#main{flex:1;display:flex;min-height:0}
+#boardWrap{flex:1;position:relative;overflow:hidden;min-width:0;touch-action:none;background:radial-gradient(circle at 50% 40%,#5a554c,#2b2924)}
+#board{position:absolute;inset:0;width:100%;height:100%;transform-origin:0 0;user-select:none;-webkit-user-select:none}
+.bctl{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
+.bctl button{background:#fbf6eacc}
+#panel{flex:none;width:330px;display:flex;flex-direction:column;gap:10px;padding:10px 12px 14px;overflow:auto;background:var(--paper);border-left:2px solid #c9b994;position:relative}
+#panelMin{display:none;position:absolute;right:6px;top:4px}
+#players{display:flex;flex-direction:column;gap:6px}
+.pcard{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#f8f2e4}
+.pcard.on{outline:3px solid var(--gold);background:#fff9e6}
+.pcard .sw{width:22px;height:22px;border-radius:6px;border:2px solid #0005;flex:none}
+.pcard .nm{font-weight:700}
+.pcard .meta{font-size:12px;color:var(--muted)}
+.pcard .st{margin-left:auto;font-size:18px;letter-spacing:1px;color:#c9a227;white-space:nowrap}
+.pcard .st i{color:#cfc4ad;font-style:normal}
+#turnBox{border:1px solid var(--line);border-radius:12px;padding:8px;background:#fffaf0}
+#status{min-height:40px;font-size:14px}
+#status b{font-size:15px}
+#actbar{display:flex;gap:8px;margin-top:6px}
+#actbar button{flex:1}
+#tray h3,#panel summary{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);cursor:pointer}
+#trayBtns{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tbtn{display:flex;flex-direction:column;align-items:center;padding:4px 2px;min-height:62px;font-size:11px;gap:1px}
+.tbtn svg{width:30px;height:30px}
+.tbtn.sel{outline:3px solid var(--gold);background:#fff4c8}
+.tbtn b{font-size:12px}
+#trayAtt{margin-top:6px;font-size:12px;color:var(--muted)}
+#intel{margin:0;padding-left:18px;font-size:13px}
+#intel li{margin:3px 0}
+#intel li.warn{color:#9b1c13;font-weight:600}
+#journal{margin:0;padding-left:20px;font-size:12.5px;max-height:220px;overflow:auto}
+#journal li{margin:2px 0}
+#journal .jt{color:var(--muted)}
+.dbg{font:12px/1.3 ui-monospace,Consolas,monospace;white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;max-height:260px;overflow:auto}
+.edit textarea{width:100%;min-height:150px;font:12px/1.3 ui-monospace,Consolas,monospace}
+.edit .row{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+
+@media (max-width:760px),(max-width:1100px) and (max-aspect-ratio:1/1){
+  #main{flex-direction:column}
+  #boardWrap{flex:1 1 auto;min-height:250px}
+  #panel{width:auto;max-height:52dvh;border-left:0;border-top:2px solid #c9b994;padding:8px 10px calc(10px + env(safe-area-inset-bottom));gap:8px}
+  #panelMin{display:block}
+  #players{flex-direction:row;padding-right:40px}
+  .pcard{flex:1;min-width:0;padding:4px 6px}
+  .pcard .meta{display:none}
+  .pcard .st{font-size:15px}
+  #panel.min{max-height:none}
+  #panel.min #panelMore{display:none}
+  #panel.min #players .meta{display:none}
+}
+
+/* ---------- landing ---------- */
+#landing{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;background:#1f1d1a;overflow:auto}
+.l-art{flex:none;height:clamp(130px,26dvh,320px);background:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAwIDgwMCIgcHJlc2VydmVBc3BlY3RSYXRpbz0ieE1pZFlNaWQgc2xpY2UiPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJza3kiIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyZDNiNGEiLz48c3RvcCBvZmZzZXQ9Ii41NSIgc3RvcC1jb2xvcj0iIzdmOGI4ZiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2M5Yjk4ZiIvPjwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9Imdyb3VuZCIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Q4Y2ZiOSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E5OWQ4MiIvPjwvbGluZWFyR3JhZGllbnQ+CiAgICA8cGF0dGVybiBpZD0idGlsZSIgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiBmaWxsPSJub25lIiBzdHJva2U9IiM5YzkxN2EiIHN0cm9rZS13aWR0aD0iMyIvPjwvcGF0dGVybj4KICAgIDxnIGlkPSJjbG91ZCI+PHBhdGggZD0iTS03MCwyMCBRLTk1LDIwIC05MCwtNCBRLTkwLC0yOCAtNjAsLTI2IFEtNTYsLTYwIC0yMCwtNTYgUTAsLTgwIDI4LC02MCBRNjQsLTY4IDY4LC0zMiBROTYsLTI0IDg4LDQgUTkyLDMyIDYwLDMwIFE0OCw1MiAxNiw0NCBRLTgsNjAgLTMyLDQ0IFEtNjAsNTIgLTcwLDIwIFoiLz48L2c+CiAgICA8ZyBpZD0iZ3J1bnQiPgogICAgICA8cGF0aCBkPSJNLTM4LDU2IEwtMzgsOCBRLTM4LC0xMiAtMjQsLTE4IEwyNCwtMTggUTM4LC0xMiAzOCw4IEwzOCw1NiBaIiBzdHJva2Utd2lkdGg9IjYiLz4KICAgICAgPHJlY3QgeD0iLTIyIiB5PSItMTIiIHdpZHRoPSI0NCIgaGVpZ2h0PSIyNCIgcng9IjgiIGZpbGw9IiNmMWU2Y2YiIHN0cm9rZS13aWR0aD0iNCIvPgogICAgICA8cGF0aCBkPSJNLTQ2LC0xMiBRLTQ2LC02MiAwLC02MiBRNDYsLTYyIDQ2LC0xMiBaIiBzdHJva2Utd2lkdGg9IjYiLz4KICAgICAgPHJlY3QgeD0iMTIiIHk9IjE4IiB3aWR0aD0iNTIiIGhlaWdodD0iMTIiIHJ4PSI0IiBzdHJva2Utd2lkdGg9IjAiLz4KICAgIDwvZz4KICAgIDxnIGlkPSJ0YW5rIj4KICAgICAgPHJlY3QgeD0iLTcwIiB5PSItNzAiIHdpZHRoPSIxNDAiIGhlaWdodD0iMTQwIiByeD0iMTQiIHN0cm9rZS13aWR0aD0iNyIvPgogICAgICA8ZyBzdHJva2Utd2lkdGg9IjAiPjxyZWN0IHg9Ii01OCIgeT0iLTY2IiB3aWR0aD0iMTAiIGhlaWdodD0iMjIiLz48cmVjdCB4PSItMzgiIHk9Ii02NiIgd2lkdGg9IjEwIiBoZWlnaHQ9IjIyIi8+PHJlY3QgeD0iLTE4IiB5PSItNjYiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMiIvPjxyZWN0IHg9IjIiIHk9Ii02NiIgd2lkdGg9IjEwIiBoZWlnaHQ9IjIyIi8+PHJlY3QgeD0iMjIiIHk9Ii02NiIgd2lkdGg9IjEwIiBoZWlnaHQ9IjIyIi8+PHJlY3QgeD0iNDIiIHk9Ii02NiIgd2lkdGg9IjEwIiBoZWlnaHQ9IjIyIi8+CiAgICAgIDxyZWN0IHg9Ii01OCIgeT0iNDQiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMiIvPjxyZWN0IHg9Ii0zOCIgeT0iNDQiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMiIvPjxyZWN0IHg9Ii0xOCIgeT0iNDQiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMiIvPjxyZWN0IHg9IjIiIHk9IjQ0IiB3aWR0aD0iMTAiIGhlaWdodD0iMjIiLz48cmVjdCB4PSIyMiIgeT0iNDQiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMiIvPjxyZWN0IHg9IjQyIiB5PSI0NCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjIyIi8+PC9nPgogICAgICA8Y2lyY2xlIHI9IjI2IiBmaWxsPSIjZjFlNmNmIiBzdHJva2Utd2lkdGg9IjUiLz48Y2lyY2xlIHI9IjEyIiBzdHJva2Utd2lkdGg9IjAiLz48cmVjdCB4PSItNiIgeT0iLTYwIiB3aWR0aD0iMTIiIGhlaWdodD0iNDAiIHN0cm9rZS13aWR0aD0iMCIvPgogICAgPC9nPgogICAgPGcgaWQ9InBsYW5lIj48Y2lyY2xlIHI9IjcwIiBzdHJva2Utd2lkdGg9IjciLz48cGF0aCBkPSJNLTcsLTUwIEw3LC01MCBMOSwtMTIgTDU0LC00IEw1NCw4IEw5LDggTDcsMzIgTDIyLDQwIEwyMiw0OCBMLTIyLDQ4IEwtMjIsNDAgTC03LDMyIEwtOSw4IEwtNTQsOCBMLTU0LC00IEwtOSwtMTIgWiIgc3Ryb2tlLXdpZHRoPSIwIiBmaWxsPSIjMTgzMTU1Ii8+PC9nPgogIDwvZGVmcz4KICA8cmVjdCB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIGZpbGw9InVybCgjc2t5KSIvPgogIDx1c2UgaHJlZj0iI2Nsb3VkIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxODAsMTIwKSBzY2FsZSgxLjQpIiBmaWxsPSIjZTllNmRlIiBvcGFjaXR5PSIuOSIvPgogIDx1c2UgaHJlZj0iI2Nsb3VkIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5ODAsOTApIHNjYWxlKDEuMSkiIGZpbGw9IiNlOWU2ZGUiIG9wYWNpdHk9Ii44Ii8+CiAgPHVzZSBocmVmPSIjY2xvdWQiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDY0MCwxNzApIHNjYWxlKC44KSIgZmlsbD0iI2Q4ZDRjYSIgb3BhY2l0eT0iLjciLz4KICA8cGF0aCBkPSJNMCw0MzAgTDEyMDAsMzgwIEwxMjAwLDgwMCBMMCw4MDAgWiIgZmlsbD0idXJsKCNncm91bmQpIi8+CiAgPHBhdGggZD0iTTAsNDMwIEwxMjAwLDM4MCBMMTIwMCw4MDAgTDAsODAwIFoiIGZpbGw9InVybCgjdGlsZSkiIG9wYWNpdHk9Ii41Ii8+CiAgPGcgc3Ryb2tlPSIjMmEyNjIyIiBzdHJva2Utd2lkdGg9IjUiIGZpbGw9Im5vbmUiIG9wYWNpdHk9Ii43NSI+CiAgICA8cGF0aCBkPSJNMCw0NzAgTDEyMDAsNDIwIi8+CiAgICA8cGF0aCBkPSJNMzAsNDU1IGwyNiwyNiBNNTYsNDU1IGwtMjYsMjYgTTEzMCw0NTEgbDI2LDI2IE0xNTYsNDUxIGwtMjYsMjYgTTIzMCw0NDcgbDI2LDI2IE0yNTYsNDQ3IGwtMjYsMjYgTTMzMCw0NDMgbDI2LDI2IE0zNTYsNDQzIGwtMjYsMjYgTTQzMCw0MzkgbDI2LDI2IE00NTYsNDM5IGwtMjYsMjYgTTUzMCw0MzUgbDI2LDI2IE01NTYsNDM1IGwtMjYsMjYgTTYzMCw0MzEgbDI2LDI2IE02NTYsNDMxIGwtMjYsMjYgTTczMCw0MjcgbDI2LDI2IE03NTYsNDI3IGwtMjYsMjYgTTgzMCw0MjMgbDI2LDI2IE04NTYsNDIzIGwtMjYsMjYgTTkzMCw0MTkgbDI2LDI2IE05NTYsNDE5IGwtMjYsMjYgTTEwMzAsNDE1IGwyNiwyNiBNMTA1Niw0MTUgbC0yNiwyNiBNMTEzMCw0MTEgbDI2LDI2IE0xMTU2LDQxMSBsLTI2LDI2Ii8+CiAgPC9nPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDYwMCw2MDApIiBvcGFjaXR5PSIuODUiPjxjaXJjbGUgcj0iOTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M0MzAyYiIgc3Ryb2tlLXdpZHRoPSIxMiIvPjxjaXJjbGUgcj0iNTYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M0MzAyYiIgc3Ryb2tlLXdpZHRoPSI4Ii8+PGNpcmNsZSByPSIyMCIgZmlsbD0iI2M0MzAyYiIvPjwvZz4KICA8dXNlIGhyZWY9IiN0YW5rIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5MDAsNTYwKSByb3RhdGUoLTgpIiBmaWxsPSIjOGZkMTRmIiBzdHJva2U9IiMzNTVmMTQiLz4KICA8dXNlIGhyZWY9IiNncnVudCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzYwLDY0MCkgc2NhbGUoMS4xNSkiIGZpbGw9IiM4ZmQxNGYiIHN0cm9rZT0iIzM1NWYxNCIvPgogIDx1c2UgaHJlZj0iI2dydW50IiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMDYwLDY2MCkgc2NhbGUoMS4wNSkiIGZpbGw9IiM4ZmQxNGYiIHN0cm9rZT0iIzM1NWYxNCIvPgogIDx1c2UgaHJlZj0iI3RhbmsiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDI4MCw2MDApIHJvdGF0ZSg2KSIgZmlsbD0iIzRmOGZlMCIgc3Ryb2tlPSIjMWIzYjZiIi8+CiAgPHVzZSBocmVmPSIjZ3J1bnQiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDQ1MCw2NjApIHNjYWxlKDEuMikiIGZpbGw9IiM0ZjhmZTAiIHN0cm9rZT0iIzFiM2I2YiIvPgogIDx1c2UgaHJlZj0iI2dydW50IiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMjAsNjkwKSBzY2FsZSgxLjEpIiBmaWxsPSIjNGY4ZmUwIiBzdHJva2U9IiMxYjNiNmIiLz4KICA8dXNlIGhyZWY9IiNwbGFuZSIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNDcwLDI1MCkgcm90YXRlKDI1KSBzY2FsZSguOSkiIGZpbGw9IiM0ZjhmZTAiIHN0cm9rZT0iIzFiM2I2YiIvPgogIDxwYXRoIGQ9Ik00MTAsMzAwIFEzMDAsMzYwIDE4MCwzNTAiIHN0cm9rZT0iI2Y0ZWZlMiIgc3Ryb2tlLXdpZHRoPSIxMCIgc3Ryb2tlLWRhc2hhcnJheT0iMTggMTYiIGZpbGw9Im5vbmUiIG9wYWNpdHk9Ii44Ii8+CiAgPHBhdGggZD0iTTYwMCw1MjAgbDEyLDI0IDI2LDQgLTE5LDE4IDUsMjYgLTI0LC0xMiAtMjQsMTIgNSwtMjYgLTE5LC0xOCAyNiwtNHoiIGZpbGw9IiNmMmI1MjAiIHN0cm9rZT0iIzhhNWYwMCIgc3Ryb2tlLXdpZHRoPSI0IiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwLC0yNjApIHNjYWxlKDEpIi8+Cjwvc3ZnPgo=") center/cover no-repeat;border-bottom:3px solid #000}
+.l-panel{flex:none;width:min(440px,calc(100% - 24px));margin:-28px auto 16px;background:var(--paper);border-radius:16px;padding:14px 16px 12px;box-shadow:0 10px 30px #000a;position:relative}
+.l-panel h1{margin:0;font-family:"Stencil","Impact","Arial Black",sans-serif;letter-spacing:.14em;font-size:34px;color:#3a352d;text-align:center}
+.l-panel h2{margin:0 0 8px;font-size:20px}
+.l-sub{margin:0 0 10px;text-align:center;color:var(--muted)}
+#lMenu{display:flex;flex-direction:column;gap:8px}
+#lMenu button,#lMenu .lbtn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;text-decoration:none;padding:9px 14px}
+#lMenu small{font-size:12px;opacity:.75;font-weight:400}
+.l-foot{text-align:center;margin:4px 0 0;font-size:13px}
+.l-foot a{color:#7a2a20}
+#lSetup fieldset{border:1px solid var(--line);border-radius:10px;margin:0 0 8px;padding:6px 10px 8px;display:flex;flex-wrap:wrap;gap:6px}
+#lSetup legend{font-weight:700;font-size:13px;padding:0 4px}
+.l-opt{display:flex;align-items:center;gap:6px;min-height:36px;padding:4px 10px;border:1px solid #cdbd9b;border-radius:9px;background:#fbf6ea;cursor:pointer;font-size:14px}
+.l-opt:has(input:checked){background:#fff1c2;border-color:#c79b1a}
+.l-btns{display:flex;gap:10px;margin-top:6px}
+.l-btns .primary{flex:1}
+.l-ver{flex:none;margin:auto 0 0;padding:0 12px calc(6px + env(safe-area-inset-bottom));text-align:center;font-size:12.5px;line-height:1.2;color:#eadfc8;text-shadow:0 1px 3px #000}
+#landing .l-ver button{min-height:28px;padding:2px 6px;border:0;background:none;color:#f5d68d;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;box-shadow:none}
+@media (min-width:900px) and (min-height:560px){
+  #landing{flex-direction:row;align-items:stretch;overflow:hidden}
+  .l-art{height:auto;flex:1 1 58%;border-bottom:0;border-right:3px solid #000}
+  .l-panel{flex:0 1 440px;margin:auto 36px;max-height:calc(100dvh - 60px);overflow:auto}
+  .l-ver{position:absolute;right:16px;bottom:4px;left:auto}
+}
+
+/* ---------- modal, handoff, toast ---------- */
+#modal{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center}
+#modalBack{position:absolute;inset:0;background:#000a}
+#modalBox{position:relative;width:min(560px,calc(100% - 20px));max-height:calc(100dvh - 24px);overflow:auto;background:var(--paper);border-radius:14px;padding:14px 16px;box-shadow:0 10px 40px #000c}
+#modal.docked{inset:auto 0 0 auto;width:min(380px,100%);height:100dvh;align-items:stretch}
+#modal.docked #modalBack{display:none}
+#modal.docked #modalBox{width:100%;max-height:none;border-radius:0}
+.mhead{display:flex;align-items:center;gap:6px;margin:-4px -6px 6px 0}
+.mhead h2{margin:0;font-size:19px;flex:1}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.mbody table{border-collapse:collapse;width:100%;font-size:13.5px}
+.mbody td,.mbody th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+.mbody h3{margin:12px 0 4px;font-size:15px}
+.mbody ul{margin:4px 0;padding-left:20px}
+.picks{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.picks button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-height:64px}
+.picks small{opacity:.75;font-size:12px}
+.cl section{border-top:1px solid var(--line);padding:8px 0 2px}
+.cl section:first-child{border-top:0;padding-top:0}
+.cl h3{margin:0;display:flex;gap:8px;align-items:baseline}
+.cl small{margin-left:auto;color:var(--muted);font-weight:400}
+.cl-new{background:#b8352b;color:#fff;border-radius:6px;padding:1px 6px;font-size:11px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:6px 0}
+.statgrid div{background:#fffaf0;border:1px solid var(--line);border-radius:10px;padding:6px 8px;text-align:center}
+.statgrid b{display:block;font-size:22px}
+#handoff{position:fixed;inset:0;z-index:25;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#1f1d1aee;color:#f3ead6;text-align:center;padding:20px}
+#handoff h2{margin:0;font-size:26px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:40;background:#2b2620;color:#fff;padding:8px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .25s;max-width:calc(100% - 30px);text-align:center}
+#toast.on{opacity:1}
+#testOut{position:fixed;inset:0;z-index:50;overflow:auto;background:#fff;padding:16px;font:14px/1.4 ui-monospace,Consolas,monospace}
+#testOut .ok{color:#126b12}#testOut .bad{color:#b00;font-weight:700}
+
+/* ---------- board ---------- */
+.hit{fill:transparent;cursor:pointer}
+.unit{pointer-events:none}
+.pulse{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none}#toast{transition:none}}
+
+</style>
+</head>
+<body>
+<div id="app" hidden>
+  <header id="top">
+    <button id="menuBtn" class="ghost" aria-label="Menu">&#9776;</button>
+    <div id="topTitle">GRUNTZ</div>
+    <div id="topStars" aria-live="polite"></div>
+  </header>
+  <main id="main">
+    <div id="boardWrap">
+      <svg id="board" viewBox="-70 -70 940 740" role="img" aria-label="Gruntz battlefield"></svg>
+      <div class="bctl"><button id="fitBtn" class="ghost small" title="Reset zoom">Fit</button></div>
+    </div>
+    <aside id="panel">
+      <button id="panelMin" class="ghost small" aria-expanded="true" title="Minimise panel">&#9662;</button>
+      <div id="players"></div>
+      <div id="turnBox">
+        <div id="status" aria-live="polite"></div>
+        <div id="actbar">
+          <button id="undoBtn">Undo</button>
+          <button id="doneBtn" class="primary">Done</button>
+        </div>
+      </div>
+      <section id="tray"><h3>Reinforcements</h3><div id="trayBtns"></div><div id="trayAtt"></div></section>
+      <div id="panelMore">
+        <details id="intelBox" open><summary>Rival intel</summary><ul id="intel"></ul></details>
+        <details id="journalBox"><summary>Journal</summary><ol id="journal"></ol></details>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div id="landing" role="dialog" aria-modal="true" aria-labelledby="lTitle">
+  <div class="l-art" role="img" aria-label="Illustration: blue and green toy soldiers, tanks and a fighter around a Control Point"></div>
+  <div class="l-panel">
+    <div id="lMenu">
+      <h1 id="lTitle">GRUNTZ</h1>
+      <p class="l-sub">Toy-soldier tactics for two commanders</p>
+      <button id="lResume" hidden>Resume battle<small>Continue your saved game</small></button>
+      <button id="lNew" class="primary">New game<small>Choose sides, opponent and star goal</small></button>
+      <button id="lHow">How to play<small>Quick rules now; a guided tutorial is coming</small></button>
+      <a class="lbtn" id="lRules" target="_blank" rel="noopener noreferrer">Read the rulebook &#8599;<small>Official PDF, v5 edition (opens a new tab)</small></a>
+      <a class="lbtn" id="lVideo" target="_blank" rel="noopener noreferrer">Watch how to play &#8599;<small>Official 8-minute video on YouTube</small></a>
+      <button id="lQuick">Quick rules<small>One-screen summary of this version</small></button>
+      <button id="lStats">Statistics<small>Your record against each opponent</small></button>
+      <p class="l-foot"><a id="lPub" target="_blank" rel="noopener noreferrer">GRUNTZ at Allplay</a></p>
+    </div>
+    <form id="lSetup" hidden>
+      <h2>New game</h2>
+      <fieldset><legend>Your army</legend>
+        <label class="l-opt"><input type="radio" name="color" value="blue" checked> Blue</label>
+        <label class="l-opt"><input type="radio" name="color" value="green"> Green</label>
+      </fieldset>
+      <fieldset><legend>Opponent</legend>
+        <label class="l-opt"><input type="radio" name="opp" value="easy"> AI Easy</label>
+        <label class="l-opt"><input type="radio" name="opp" value="normal" checked> AI Normal</label>
+        <label class="l-opt"><input type="radio" name="opp" value="hard"> AI Hard</label>
+        <label class="l-opt"><input type="radio" name="opp" value="human"> Pass and play</label>
+      </fieldset>
+      <fieldset><legend>Attacker (moves first)</legend>
+        <label class="l-opt"><input type="radio" name="atk" value="me" checked> You</label>
+        <label class="l-opt"><input type="radio" name="atk" value="opp"> Opponent</label>
+        <label class="l-opt"><input type="radio" name="atk" value="random"> Random</label>
+      </fieldset>
+      <fieldset><legend>Star goal</legend>
+        <label class="l-opt"><input type="radio" name="goal" value="3" checked> 3 stars (official)</label>
+        <label class="l-opt"><input type="radio" name="goal" value="5"> 5 stars (long game)</label>
+      </fieldset>
+      <div class="l-btns"><button type="button" id="lBack">Back</button><button type="submit" class="primary">Start battle</button></div>
+    </form>
+  </div>
+  <p class="l-ver"><button type="button" id="lVer" aria-haspopup="dialog" title="What's new: version history"></button> &middot; promptcrafted by BD</p>
+</div>
+
+<div id="modal" hidden><div id="modalBack"></div><div id="modalBox" role="dialog" aria-modal="true"></div></div>
+<div id="handoff" hidden></div>
+<div id="toast" role="status"></div>
+<div id="testOut" hidden></div>
+
+<script>
+'use strict';
+/* Gruntz: unofficial browser version for personal play. Version history shown on the landing page. */
+const APP_VERSION = '0.1';
+const CHANGELOG = [
+  {v: '0.1', date: '2026-10-20', items: [
+    'First playable version: the full base game of GRUNTZ on the 7x5 map with 10 air spaces and 13 flight paths.',
+    'All units: Gruntz, Captain (drags adjacent Gruntz), Tanks and Trucks with Cannon, Transport or Anti-Air, Fighters and Bombers.',
+    'Turns of Move 1 + Deploy 2 or Move 2 + Deploy 1, Victory Stars at the end of your turn, and the Captain HQ capture.',
+    'Play against the AI (Easy, Normal or Hard) or pass and play with a friend.',
+    'Star goal option: 3 (official) or 5 for a longer battle.',
+    'Statistics, Quick rules, links to the rulebook and the how-to-play video.',
+    'Works on phones (including fold phones) and laptops.'
+  ]}
+];
+
+</script>
+<script>
+'use strict';
+/* Board and unit data. The map is a text table so it can be checked cell by cell (?debug) and edited (?edit). */
+
+// Ground: one line per row, top (North) to bottom (South), 7 columns.
+// N / S = that side's Backline, n / s = that side's HQ (also Backline), C = Control Point, . = open ground.
+const MAP_TEXT = `
+N N N n N N N
+. . . . . . .
+. C . C . C .
+. . . . . . .
+S S S s S S S
+`;
+
+// Air spaces: id, row, column, Backline side (- = neutral).
+// Row 0 is above the map and row 6 below it; column 0 is the left edge and column 8 the right edge.
+const AIR_TEXT = `
+N2 0 2 N
+N4 0 4 N
+N6 0 6 N
+S2 6 2 S
+S4 6 4 S
+S6 6 6 S
+W2 2 0 -
+W4 4 0 -
+E2 2 8 -
+E4 4 8 -
+`;
+
+// Flight paths: id, from, to : ground cells crossed (row,column) in order from 'from'.
+const PATH_TEXT = `
+V2  N2 S2 : 1,2 2,2 3,2 4,2 5,2
+V4  N4 S4 : 1,4 2,4 3,4 4,4 5,4
+V6  N6 S6 : 1,6 2,6 3,6 4,6 5,6
+H2  W2 E2 : 2,1 2,2 2,3 2,4 2,5 2,6 2,7
+H4  W4 E4 : 4,1 4,2 4,3 4,4 4,5 4,6 4,7
+DNW N4 W4 : 1,3 2,2 3,1
+DNE N4 E4 : 1,5 2,6 3,7
+DSW S4 W2 : 5,3 4,2 3,1
+DSE S4 E2 : 5,5 4,6 3,7
+CNW W2 N2 : 1,1
+CNE N6 E2 : 1,7
+CSW W4 S2 : 5,1
+CSE S6 E4 : 5,7
+`;
+
+// Starting Reinforcements per player. 'air' is the number of aircraft discs (Fighter or Bomber, chosen when deployed).
+const RESERVES = {grunt: 5, captain: 1, tank: 3, truck: 2, cannon: 3, transport: 2, antiair: 2, air: 3};
+
+// What each unit (or vehicle attachment) can attack. A vehicle attacks with its attachment.
+// Tanks appear only in the Bomber and Cannon lists: that is the "only Bombers and Cannon vehicles" rule.
+const ATTACKS = {
+  grunt: ['grunt', 'captain', 'truck'],
+  captain: [],
+  fighter: ['grunt', 'captain', 'truck', 'fighter', 'bomber'],
+  bomber: ['tank', 'truck'],
+  cannon: ['grunt', 'captain', 'tank', 'truck'],
+  transport: [],
+  antiair: []
+};
+
+const UNIT_NAMES = {grunt: 'Grunt', captain: 'Captain', tank: 'Tank', truck: 'Truck', fighter: 'Fighter', bomber: 'Bomber',
+  cannon: 'Cannon', transport: 'Transport', antiair: 'Anti-Air'};
+const ATTACHMENTS = ['cannon', 'transport', 'antiair'];
+const VEHICLES = ['tank', 'truck'];
+const AIRCRAFT = ['fighter', 'bomber'];
+
+const LINKS = {
+  rulebook: 'https://madeincamelot.co.uk/cdn/shop/files/Gruntz_rulebook_v5.pdf',
+  video: 'https://www.youtube.com/watch?v=1EeB_Mr0SaA',
+  publisher: 'https://www.allplay.com/board-games/gruntz'
+};
+
+</script>
+<script>
+'use strict';
+/* Pure rules engine: state in, legal actions and new state out. Never touches the DOM. */
+
+const ORTH = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+const DIAG = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+const ALL8 = ORTH.concat(DIAG);
+const AIR0 = 100; // unit.p >= AIR0 means the unit is in air space (p - AIR0); otherwise p is a ground cell index
+const KIND_CODE = {grunt: 'g', captain: 'c', tank: 'k', truck: 'r', fighter: 'f', bomber: 'b'};
+const ATT_CODE = {cannon: 'C', transport: 'T', antiair: 'A'};
+
+function parseBoard(mapText, airText, pathText) {
+  const lines = t => t.split('\n').map(s => s.replace(/#.*/, '').trim()).filter(Boolean);
+  const grid = lines(mapText).map(l => l.split(/\s+/));
+  const rows = grid.length, cols = grid[0].length;
+  if (grid.some(r => r.length !== cols)) throw new Error('map rows have different lengths');
+  const cells = [], sides = {};
+  const side = k => sides[k] || (sides[k] = {id: k, back: [], hq: -1, air: []});
+  grid.forEach((row, ri) => row.forEach((ch, ci) => {
+    const c = {i: ri * cols + ci, r: ri + 1, c: ci + 1, back: null, hq: null, cp: false};
+    if (ch === 'C') c.cp = true;
+    else if (ch !== '.') {
+      const k = ch.toUpperCase();
+      c.back = k; side(k).back.push(c.i);
+      if (ch !== k) { c.hq = k; side(k).hq = c.i; }
+    }
+    cells.push(c);
+  }));
+  const air = lines(airText).map((l, j) => {
+    const [id, r, c, b] = l.split(/\s+/);
+    const a = {j, id, r: +r, c: +c, back: b === '-' || !b ? null : b, paths: []};
+    if (a.back) side(a.back).air.push(j);
+    return a;
+  });
+  const airIdx = Object.fromEntries(air.map(a => [a.id, a.j]));
+  const paths = lines(pathText).map((l, k) => {
+    const [head, body = ''] = l.split(':');
+    const [id, a, b] = head.trim().split(/\s+/);
+    if (!(a in airIdx) || !(b in airIdx)) throw new Error(`flight path ${id}: unknown air space`);
+    const cs = body.trim().split(/\s+/).filter(Boolean).map(rc => {
+      const [r, c] = rc.split(',').map(Number);
+      if (!(r >= 1 && r <= rows && c >= 1 && c <= cols)) throw new Error(`flight path ${id}: bad cell ${rc}`);
+      return (r - 1) * cols + (c - 1);
+    });
+    const p = {k, id, a: airIdx[a], b: airIdx[b], cells: cs};
+    air[p.a].paths.push(k); air[p.b].paths.push(k);
+    return p;
+  });
+  return {rows, cols, cells, air, airIdx, paths, sides, cps: cells.filter(c => c.cp).map(c => c.i),
+    text: {map: mapText, air: airText, path: pathText}};
+}
+
+let BOARD = parseBoard(MAP_TEXT, AIR_TEXT, PATH_TEXT);
+function setBoard(b) { BOARD = b; }
+
+const cellAt = (r, c) => (r >= 1 && r <= BOARD.rows && c >= 1 && c <= BOARD.cols) ? (r - 1) * BOARD.cols + (c - 1) : -1;
+const cellOf = rc => { const [r, c] = rc.split(',').map(Number); return cellAt(r, c); };
+const cellName = i => 'ABCDEFGHIJ'[BOARD.cells[i].c - 1] + BOARD.cells[i].r;
+const posName = p => p >= AIR0 ? BOARD.air[p - AIR0].id + ' (air)' : cellName(p);
+function neighbours(i) {
+  const c = BOARD.cells[i], out = [];
+  for (const d of ALL8) { const n = cellAt(c.r + d[0], c.c + d[1]); if (n >= 0) out.push(n); }
+  return out;
+}
+
+/* ---------- seeded RNG (mulberry32), state kept in S.rng ---------- */
+function rnd(S) {
+  S.rng = (S.rng + 0x6D2B79F5) | 0;
+  let t = S.rng;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+/* ---------- state ---------- */
+function newGame(o = {}) {
+  const seed = (o.seed != null ? o.seed : (Date.now() ^ (Math.random() * 1e9))) | 0;
+  const seatsIn = o.seats || [{color: 'blue', type: 'human'}, {color: 'green', type: 'ai', level: 'normal'}];
+  const seats = seatsIn.map((s, i) => {
+    const color = s.color || (i ? 'green' : 'blue');
+    return {name: s.name || (color === 'green' ? 'Green' : 'Blue'), color, type: s.type || 'human',
+      level: s.level || 'normal', team: s.team != null ? s.team : i, side: s.side || (i === 0 ? 'S' : 'N')};
+  });
+  const S = {v: 1, seed, rng: seed, seats, attacker: 0, cur: 0, phase: 'setup', setupLeft: 3, setupDone: 0,
+    act: 0, moves: 0, deployed: 0, grid: new Array(BOARD.rows * BOARD.cols).fill(0), air: new Array(BOARD.air.length).fill(0),
+    U: {}, nextId: 1, res: seats.map(() => Object.assign({}, RESERVES)), stars: seats.map(() => 0),
+    starGoal: o.starGoal || 3, turnCap: o.turnCap || 0, turn: 0, winner: -1, reason: '',
+    killed: seats.map(() => 0), lost: seats.map(() => 0), history: [], log: [], sim: false};
+  let att = o.attacker;
+  if (att == null || att === 'random') att = Math.floor(rnd(S) * seats.length);
+  S.attacker = att; S.cur = att;
+  return S;
+}
+
+function clone(S) {
+  const U = {};
+  for (const id in S.U) { const u = S.U[id]; U[id] = {id: u.id, o: u.o, k: u.k, a: u.a, p: u.p}; }
+  return Object.assign({}, S, {grid: S.grid.slice(), air: S.air.slice(), U, res: S.res.map(r => Object.assign({}, r)),
+    stars: S.stars.slice(), killed: S.killed.slice(), lost: S.lost.slice(), log: S.sim ? [] : S.log.slice()});
+}
+function simOf(S) { const R = clone(S); R.sim = true; R.log = []; return R; }
+
+const isEnemy = (S, a, b) => S.seats[a].team !== S.seats[b].team;
+const nextSeat = S => (S.cur + 1) % S.seats.length;
+const unitAt = (S, i) => S.grid[i] ? S.U[S.grid[i]] : null;
+const airUnit = (S, j) => S.air[j] ? S.U[S.air[j]] : null;
+const sideOf = (S, seat) => BOARD.sides[S.seats[seat].side];
+function seatOfSide(S, k) { return S.seats.findIndex(s => s.side === k); }
+function unitsOf(S, seat) { const out = []; for (const id in S.U) if (S.U[id].o === seat) out.push(S.U[id]); return out; }
+function captainOf(S, seat) { for (const id in S.U) { const u = S.U[id]; if (u.o === seat && u.k === 'captain') return u; } return null; }
+function canAttack(att, tgt) {
+  const list = (att.k === 'tank' || att.k === 'truck') ? ATTACKS[att.a] : ATTACKS[att.k];
+  return !!list && list.indexOf(tgt.k) >= 0;
+}
+function unitLabel(u) { return u.a ? `${UNIT_NAMES[u.k]} (${UNIT_NAMES[u.a]})` : UNIT_NAMES[u.k]; }
+function ev(S, e) { if (!S.sim) S.log.push(e); }
+
+/* ---------- which kind of action the current slot takes ---------- */
+function slot(S) {
+  if (S.phase === 'over') return 'none';
+  if (S.phase === 'setup') return S.setupLeft > 0 ? 'deploy' : 'end';
+  if (S.act === 0) return 'move';
+  if (S.act === 1) return S.deployed ? 'deploy' : 'moveOrDeploy';
+  if (S.act === 2) return 'deploy';
+  return 'end';
+}
+
+function legalActions(S) {
+  const sl = slot(S);
+  if (sl === 'none') return [];
+  if (sl === 'end') return [{t: 'end'}];
+  let out = [];
+  if (sl === 'move' || sl === 'moveOrDeploy') out = allMoves(S, S.cur);
+  if (sl === 'deploy' || sl === 'moveOrDeploy') out = out.concat(deployActions(S, S.cur));
+  return out.length ? out : [{t: 'skip'}];
+}
+
+function allMoves(S, seat) {
+  let out = [];
+  const ids = Object.keys(S.U).map(Number).sort((a, b) => a - b);
+  for (const id of ids) if (S.U[id].o === seat) out = out.concat(movesFor(S, S.U[id]));
+  return out;
+}
+
+function pathBlocked(S, p, owner) {
+  for (const i of p.cells) {
+    const v = unitAt(S, i);
+    if (v && v.a === 'antiair' && isEnemy(S, v.o, owner)) return true;
+  }
+  return false;
+}
+
+function movesFor(S, u) {
+  const out = [];
+  if (u.p >= AIR0) {
+    const a = BOARD.air[u.p - AIR0];
+    for (const pk of a.paths) {
+      const p = BOARD.paths[pk], dest = p.a === a.j ? p.b : p.a;
+      if (pathBlocked(S, p, u.o)) continue;
+      const v = airUnit(S, dest);
+      if (v && (!isEnemy(S, v.o, u.o) || !canAttack(u, v))) continue;
+      out.push({t: 'move', u: u.id, to: AIR0 + dest, p: pk});
+    }
+    return out;
+  }
+  const c = BOARD.cells[u.p];
+  if (u.k === 'captain') {
+    for (const d of ALL8) if (captainPlan(S, u, d)) out.push({t: 'move', u: u.id, to: cellAt(c.r + d[0], c.c + d[1])});
+    return out;
+  }
+  const dirs = u.k === 'tank' ? ORTH : ALL8, range = u.k === 'tank' ? 2 : u.k === 'truck' ? 3 : 1;
+  for (const d of dirs) {
+    for (let s = 1; s <= range; s++) {
+      const t = cellAt(c.r + d[0] * s, c.c + d[1] * s);
+      if (t < 0) break;
+      const v = unitAt(S, t);
+      if (!v) { out.push({t: 'move', u: u.id, to: t}); continue; }
+      if (isEnemy(S, v.o, u.o) && canAttack(u, v)) out.push({t: 'move', u: u.id, to: t});
+      break;
+    }
+  }
+  return out;
+}
+
+/* Captain moves 1 step in direction d; every adjacent friendly Grunt moves the same step at the same time.
+   A Grunt that cannot follow stays put. Returns the list of movers, or null if the Captain itself cannot move. */
+function captainPlan(S, cap, d) {
+  const group = [cap];
+  for (const n of neighbours(cap.p)) { const v = unitAt(S, n); if (v && v.o === cap.o && v.k === 'grunt') group.push(v); }
+  const ids = new Set(group.map(g => g.id)), stuck = new Set();
+  const dest = g => { const gc = BOARD.cells[g.p]; return cellAt(gc.r + d[0], gc.c + d[1]); };
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const g of group) {
+      if (stuck.has(g.id)) continue;
+      const t = dest(g);
+      let bad = t < 0;
+      if (!bad && S.grid[t]) {
+        const occ = S.grid[t];
+        if (ids.has(occ)) bad = stuck.has(occ);
+        else { const v = S.U[occ]; bad = g.k === 'captain' || !isEnemy(S, v.o, g.o) || !canAttack(g, v); }
+      }
+      if (bad) { stuck.add(g.id); changed = true; }
+    }
+  }
+  if (stuck.has(cap.id)) return null;
+  return group.filter(g => !stuck.has(g.id)).map(g => ({u: g, from: g.p, to: dest(g)}));
+}
+
+function deployActions(S, seat) {
+  const r = S.res[seat], side = sideOf(S, seat), out = [];
+  const back = side.back.filter(i => !S.grid[i] && !BOARD.cells[i].cp);
+  if (r.grunt > 0) {
+    const set = new Set(back);
+    for (const id in S.U) {
+      const v = S.U[id];
+      if (v.o === seat && v.a === 'transport' && v.p < AIR0)
+        for (const n of neighbours(v.p)) if (!S.grid[n] && !BOARD.cells[n].cp) set.add(n);
+    }
+    for (const i of [...set].sort((a, b) => a - b)) out.push({t: 'deploy', k: 'grunt', to: i});
+  }
+  if (r.captain > 0) for (const i of back) out.push({t: 'deploy', k: 'captain', to: i});
+  for (const k of VEHICLES) if (r[k] > 0)
+    for (const a of ATTACHMENTS) if (r[a] > 0) for (const i of back) out.push({t: 'deploy', k, a, to: i});
+  if (r.air > 0)
+    for (const j of side.air) if (!S.air[j]) for (const k of AIRCRAFT) out.push({t: 'deploy', k, to: AIR0 + j});
+  return out;
+}
+
+/* ---------- applying actions ---------- */
+const actKey = a => [a.t, a.u || '', a.k || '', a.a || '', a.to != null ? a.to : '', a.p != null ? a.p : ''].join('|');
+function isLegal(S, a) { const k = actKey(a); return legalActions(S).some(b => actKey(b) === k); }
+function apply(S0, a) { const S = clone(S0); step(S, a); return S; }
+function play(S0, a) {
+  const L = legalActions(S0), k = actKey(a), m = L.find(b => actKey(b) === k);
+  if (!m) throw new Error('illegal action ' + k);
+  return apply(S0, m);
+}
+
+function destroy(S, v, by) {
+  if (v.p >= AIR0) S.air[v.p - AIR0] = 0; else S.grid[v.p] = 0;
+  delete S.U[v.id];
+  if (v.k === 'grunt' || v.k === 'captain') S.res[v.o][v.k]++;
+  S.killed[by.o]++; S.lost[v.o]++;
+  ev(S, {e: 'kill', o: v.o, k: v.k, a: v.a, at: v.p, by: by.o, byK: by.k});
+}
+
+function setOver(S, winner, reason) {
+  S.phase = 'over'; S.winner = winner; S.reason = reason;
+  ev(S, {e: 'win', o: winner, reason});
+  pushHistory(S);
+}
+function pushHistory(S) {
+  if (S.sim) return;
+  if (S.log.length) S.history = S.history.concat([{turn: S.turn, actor: S.cur, events: S.log}]);
+  S.log = [];
+}
+
+function checkHQ(S, u) {
+  if (u.k !== 'captain' || u.p >= AIR0) return false;
+  const hq = BOARD.cells[u.p].hq;
+  if (!hq || hq === S.seats[u.o].side) return false;
+  const owner = seatOfSide(S, hq);
+  if (owner < 0 || !isEnemy(S, owner, u.o)) return false;
+  setOver(S, u.o, 'hq');
+  return true;
+}
+
+function step(S, a) {
+  if (S.phase === 'over') throw new Error('game is over');
+  if (a.t === 'move') { doMove(S, a); S.act++; S.moves++; }
+  else if (a.t === 'deploy') { doDeploy(S, a); S.act++; S.deployed++; if (S.phase === 'setup') S.setupLeft--; }
+  else if (a.t === 'skip') {
+    ev(S, {e: 'skip', o: S.cur, slot: slot(S)});
+    if (S.phase === 'setup') S.setupLeft = 0; else S.act++;
+  } else if (a.t === 'end') doEnd(S);
+  else throw new Error('unknown action ' + a.t);
+}
+
+function doMove(S, a) {
+  const u = S.U[a.u];
+  if (u.p >= AIR0) {
+    const from = u.p, p = BOARD.paths[a.p];
+    S.air[u.p - AIR0] = 0;
+    ev(S, {e: 'move', o: u.o, k: u.k, a: u.a, from, to: a.to, p: a.p});
+    for (const i of p.cells) { const v = unitAt(S, i); if (v && isEnemy(S, v.o, u.o) && canAttack(u, v)) destroy(S, v, u); }
+    const dv = airUnit(S, a.to - AIR0);
+    if (dv) destroy(S, dv, u);
+    u.p = a.to; S.air[a.to - AIR0] = u.id;
+    return;
+  }
+  if (u.k === 'captain') {
+    const c = BOARD.cells[u.p], t = BOARD.cells[a.to];
+    const plan = captainPlan(S, u, [t.r - c.r, t.c - c.c]);
+    for (const m of plan) S.grid[m.from] = 0;
+    for (const m of plan) {
+      ev(S, {e: 'move', o: m.u.o, k: m.u.k, a: m.u.a, from: m.from, to: m.to, drag: m.u.id !== u.id});
+      if (S.grid[m.to]) destroy(S, S.U[S.grid[m.to]], m.u);
+      S.grid[m.to] = m.u.id; m.u.p = m.to;
+    }
+    checkHQ(S, u);
+    return;
+  }
+  const from = u.p;
+  ev(S, {e: 'move', o: u.o, k: u.k, a: u.a, from, to: a.to});
+  S.grid[from] = 0;
+  if (S.grid[a.to]) destroy(S, S.U[S.grid[a.to]], u);
+  S.grid[a.to] = u.id; u.p = a.to;
+}
+
+function doDeploy(S, a) {
+  const r = S.res[S.cur];
+  const u = {id: S.nextId++, o: S.cur, k: a.k, a: a.a || null, p: a.to};
+  if (a.k === 'fighter' || a.k === 'bomber') { r.air--; S.air[a.to - AIR0] = u.id; }
+  else { r[a.k]--; if (a.a) r[a.a]--; S.grid[a.to] = u.id; }
+  S.U[u.id] = u;
+  ev(S, {e: 'deploy', o: u.o, k: u.k, a: u.a, to: u.p});
+}
+
+function holders(S, seat) {
+  return BOARD.cps.filter(i => { const v = unitAt(S, i); return v && v.o === seat && (v.k === 'grunt' || v.k === 'captain'); });
+}
+const starsFor = held => held >= 2 ? held - 1 : 0;
+
+function doEnd(S) {
+  const resetTurn = () => { S.act = 0; S.moves = 0; S.deployed = 0; S.setupLeft = 3; };
+  if (S.phase === 'setup') {
+    pushHistory(S);
+    S.setupDone++;
+    S.cur = nextSeat(S);
+    resetTurn();
+    if (S.setupDone >= S.seats.length) { S.phase = 'turn'; S.cur = S.attacker; S.turn = 1; }
+    return;
+  }
+  const gain = starsFor(holders(S, S.cur).length);
+  if (gain) { S.stars[S.cur] += gain; ev(S, {e: 'score', o: S.cur, n: gain, total: S.stars[S.cur]}); }
+  if (S.stars[S.cur] >= S.starGoal) { setOver(S, S.cur, 'stars'); return; }
+  pushHistory(S);
+  S.cur = nextSeat(S); S.turn++;
+  resetTurn();
+  if (S.turnCap && S.turn > S.turnCap) setOver(S, -1, 'cap');
+}
+
+/* End-of-turn preview used by the AI for mid-turn positions: scoring and seat change, without history. */
+function previewEnd(S0) {
+  const S = clone(S0); S.sim = true;
+  if (S.phase === 'setup') { S.cur = nextSeat(S); return S; }
+  S.stars[S.cur] += starsFor(holders(S, S.cur).length);
+  if (S.stars[S.cur] >= S.starGoal) { S.phase = 'over'; S.winner = S.cur; S.reason = 'stars'; return S; }
+  S.cur = nextSeat(S); S.act = 0; S.moves = 0; S.deployed = 0;
+  return S;
+}
+
+function stateKey(S) {
+  let s = S.cur + ':' + S.act + ':' + S.phase + ':';
+  for (const id of S.grid) { if (!id) { s += '.'; continue; } const u = S.U[id]; s += u.o + KIND_CODE[u.k] + (u.a ? ATT_CODE[u.a] : ''); }
+  s += '/';
+  for (const id of S.air) { if (!id) { s += '.'; continue; } const u = S.U[id]; s += u.o + KIND_CODE[u.k]; }
+  for (const r of S.res) s += '/' + r.grunt + r.captain + r.tank + r.truck + r.cannon + r.transport + r.antiair + r.air;
+  return s + '/' + S.stars.join(',');
+}
+
+/* ---------- result object (stable field names: stats, final screen and AI read it) ---------- */
+function result(S) {
+  const rows = S.seats.map((s, i) => ({seat: i, name: s.name, color: s.color, role: i === S.attacker ? 'Attacker' : 'Defender',
+    total: S.stars[i], stars: S.stars[i], unitsDestroyed: S.killed[i], unitsLost: S.lost[i]}));
+  const order = rows.slice().sort((a, b) => (b.seat === S.winner) - (a.seat === S.winner) || b.total - a.total || a.seat - b.seat);
+  order.forEach((r, k) => { r.rank = S.winner < 0 && k > 0 && r.total === order[k - 1].total ? order[k - 1].rank : k + 1; });
+  return {over: S.phase === 'over', winner: S.winner, reason: S.reason, turns: S.turn, starGoal: S.starGoal, rows, rank: order.map(r => r.seat)};
+}
+
+/* ---------- helpers for tests and the editor ---------- */
+function blankGame(o = {}) {
+  const S = newGame(Object.assign({seed: 1, attacker: 0}, o));
+  S.phase = 'turn'; S.turn = 1; S.cur = o.cur != null ? o.cur : 0; S.setupDone = S.seats.length;
+  return S;
+}
+function place(S, seat, kind, where, att) {
+  const p = typeof where === 'number' ? where : /^[A-Z]/.test(where) ? AIR0 + BOARD.airIdx[where] : cellOf(where);
+  const u = {id: S.nextId++, o: seat, k: kind, a: att || null, p};
+  const r = S.res[seat];
+  if (kind === 'fighter' || kind === 'bomber') { r.air--; S.air[p - AIR0] = u.id; }
+  else { r[kind]--; if (att) r[att]--; if (S.grid[p]) throw new Error('cell occupied ' + where); S.grid[p] = u.id; }
+  S.U[u.id] = u;
+  return u;
+}
+
+</script>
+<script>
+'use strict';
+/* AI on the same engine. Candidate turns are built with a beam search over the 3 actions of a turn
+   (covering Move 1 + Deploy 2 and Move 2 + Deploy 1 in every order), then a 2-ply turn search
+   (my turn, the rival's best reply) picks the turn: any turn that lets the rival win is rejected,
+   and the rival's best reply is blended into the score. Normal uses fixed widths, so for a given
+   position it always plays the same turn on any machine. */
+
+const AI_LEVELS = {
+  easy: {width: 3, cands: 1, reply: 0, noise: 700},
+  normal: {width: 8, cands: 10, reply: 7, blend: 0.5, noise: 0},
+  hard: {width: 12, cands: 14, reply: 10, blend: 0.5, noise: 0, ms: 1300}
+};
+
+const VAL = {grunt: 110, captain: 140, tank: 200, truck: 150, fighter: 190, bomber: 170};
+const ATT_VAL = {cannon: 110, transport: 90, antiair: 70};
+const RES_VAL = {grunt: 25, captain: 50, tank: 175, truck: 125, cannon: 95, transport: 70, antiair: 60, air: 160};
+const CP_DIST_BONUS = [0, 45, 18, 0, 0, 0, 0];
+const STAR = 1000;
+
+function unitValue(u) { return VAL[u.k] + (u.a ? ATT_VAL[u.a] : 0); }
+/* Destroying a unit that holds a Control Point also denies Victory Stars. */
+function targetValue(S, t) {
+  let v = unitValue(t);
+  if (t.p < AIR0 && BOARD.cells[t.p].cp && (t.k === 'grunt' || t.k === 'captain')) v += holders(S, t.o).length >= 2 ? 450 : 120;
+  return v;
+}
+
+function hqDistance(S, cap) {
+  const c = BOARD.cells[cap.p];
+  let best = 99;
+  for (const k in BOARD.sides) {
+    const owner = seatOfSide(S, k);
+    if (owner < 0 || !isEnemy(S, owner, cap.o)) continue;
+    const h = BOARD.cells[BOARD.sides[k].hq];
+    best = Math.min(best, Math.max(Math.abs(h.r - c.r), Math.abs(h.c - c.c)));
+  }
+  return best;
+}
+
+const CP_DIST = [];
+function cpDistance(i) {
+  if (CP_DIST.board !== BOARD) { CP_DIST.length = 0; CP_DIST.board = BOARD; }
+  if (CP_DIST[i] == null) {
+    const c = BOARD.cells[i];
+    CP_DIST[i] = Math.min(...BOARD.cps.map(k => Math.max(Math.abs(BOARD.cells[k].r - c.r), Math.abs(BOARD.cells[k].c - c.c))));
+  }
+  return CP_DIST[i];
+}
+
+/* Fewest Captain steps to an empty enemy HQ through empty cells (Captains can't attack), up to maxSteps. */
+function captainReach(S, seat, maxSteps) {
+  const cap = captainOf(S, seat);
+  if (!cap || cap.p >= AIR0) return 99;
+  const targets = new Set();
+  for (const k in BOARD.sides) {
+    const owner = seatOfSide(S, k);
+    if (owner >= 0 && isEnemy(S, owner, seat)) targets.add(BOARD.sides[k].hq);
+  }
+  let frontier = [cap.p];
+  const seen = new Set(frontier);
+  for (let d = 1; d <= maxSteps; d++) {
+    const next = [];
+    for (const i of frontier) for (const n of neighbours(i)) {
+      if (seen.has(n) || S.grid[n]) continue;
+      if (targets.has(n)) return d;
+      seen.add(n); next.push(n);
+    }
+    frontier = next;
+  }
+  return 99;
+}
+
+/* Values of the enemy units this seat could destroy with one Move action, best first. */
+function captureValues(S, seat) {
+  const vals = [];
+  for (const u of unitsOf(S, seat)) {
+    for (const m of movesFor(S, u)) {
+      let v = 0;
+      if (u.p >= AIR0) {
+        for (const i of BOARD.paths[m.p].cells) { const t = unitAt(S, i); if (t && isEnemy(S, t.o, seat) && canAttack(u, t)) v += targetValue(S, t); }
+        const t = airUnit(S, m.to - AIR0); if (t) v += targetValue(S, t);
+      } else if (u.k === 'captain') {
+        const c = BOARD.cells[u.p], tc = BOARD.cells[m.to];
+        for (const mv of captainPlan(S, u, [tc.r - c.r, tc.c - c.c])) { const t = unitAt(S, mv.to); if (t && isEnemy(S, t.o, seat)) v += targetValue(S, t); }
+      } else { const t = unitAt(S, m.to); if (t) v = targetValue(S, t); }
+      if (v) vals.push(v);
+    }
+  }
+  return vals.sort((a, b) => b - a);
+}
+
+/* Score of a position for seat `me` (symmetric for 2 players: evaluate(S, a) = -evaluate(S, b)). */
+function evaluate(S, me) {
+  if (S.phase === 'over') return S.winner === me ? 1e6 - S.turn : S.winner < 0 ? 0 : -1e6 + S.turn;
+  const stm = S.cur, goal = S.starGoal;
+  let sc = 0;
+  for (let s = 0; s < S.seats.length; s++) {
+    const sign = s === me ? 1 : (isEnemy(S, s, me) ? -1 : 0);
+    if (!sign) continue;
+    let v = S.stars[s] * STAR + (S.stars[s] >= goal - 1 ? 400 : 0);
+    const r = S.res[s];
+    for (const k in RES_VAL) v += r[k] * RES_VAL[k];
+    const held = holders(S, s).length;
+    v += held * 160 + (held >= 2 ? (s === stm ? 900 : 450) * (held - 1) : 0);
+    if (s === stm && held >= 2 && S.phase === 'turn' && S.stars[s] + starsFor(held) >= goal) v += 30000;
+    for (const u of unitsOf(S, s)) {
+      v += unitValue(u);
+      if (u.p >= AIR0) continue;
+      if (u.k === 'grunt' || u.k === 'captain') v += CP_DIST_BONUS[cpDistance(u.p)];
+      if (u.k === 'captain') v += (6 - hqDistance(S, u)) * 25;
+    }
+    const reach = captainReach(S, s, 2);
+    if (s === stm && S.phase === 'turn' && reach <= 2) v += 40000;
+    else if (s !== stm && reach <= 1) v += 1500;
+    else if (s !== stm && reach <= 2) v += 300;
+    const cv = captureValues(S, s);
+    if (cv.length) v += s === stm ? 0.7 * cv[0] + (cv[1] ? 0.3 * cv[1] : 0) : 0.3 * cv[0];
+    sc += sign * v;
+  }
+  return sc;
+}
+
+function evalMid(S, me) { return evaluate(previewEnd(S), me); }
+
+/* Beam search over the actions of the current turn. Returns finished turns {S, acts, sc}, best first for `me`. */
+function genTurns(S0, width, me, budget) {
+  let beam = [{S: S0, acts: []}];
+  const fin = [], seen = new Set();
+  for (let depth = 0; depth < 6 && beam.length; depth++) {
+    const next = [];
+    for (const b of beam) {
+      for (const a of legalActions(b.S)) {
+        const S2 = apply(b.S, a), acts = b.acts.concat([a]);
+        if (budget) budget.n++;
+        if (a.t === 'end' || S2.phase === 'over') { fin.push({S: S2, acts, sc: evaluate(S2, me)}); continue; }
+        const k = stateKey(S2);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        next.push({S: S2, acts, sc: evalMid(S2, me), key: actsKey(acts)});
+      }
+    }
+    next.sort((x, y) => y.sc - x.sc || (x.key < y.key ? -1 : x.key > y.key ? 1 : 0));
+    beam = diverse(next, width, 2);
+  }
+  fin.sort((x, y) => y.sc - x.sc);
+  return diverse(fin, fin.length, 1);
+}
+const actsKey = acts => acts.map(actKey).join(';');
+/* Turns that differ only in which cell a unit deploys to are near-duplicates: keep at most `per` of each. */
+const shapeKey = acts => acts.map(a => a.t === 'deploy' ? 'd' + a.k + (a.a || '') : actKey(a)).join(';');
+function diverse(list, n, per) {
+  const out = [], count = new Map();
+  for (const x of list) {
+    const k = shapeKey(x.acts), c = count.get(k) || 0;
+    if (c >= per) continue;
+    count.set(k, c + 1); out.push(x);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+function mulberry(seed) {
+  let a = seed | 0;
+  return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), a | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+/* Choose the rest of the current turn for S.cur. Returns the list of actions, ending with {t:'end'} unless the game ends. */
+function aiPlan(S, level) {
+  const cfg = AI_LEVELS[level] || AI_LEVELS.normal, me = S.cur;
+  const t0 = Date.now(), budget = {n: 0};
+  const mine = genTurns(simOf(S), cfg.width, me, budget);
+  if (!mine.length) return legalActions(S).slice(0, 1);
+  const win = mine.find(t => t.S.phase === 'over' && t.S.winner === me);
+  if (win) return win.acts;
+  let best = null;
+  if (!cfg.reply) {
+    const r = mulberry(S.seed * 31 + S.turn * 7919 + me * 104729 + S.act);
+    for (const t of mine) { const v = t.sc + r() * cfg.noise; if (!best || v > best.v) best = Object.assign({v}, t); }
+  } else {
+    for (const t of mine.slice(0, cfg.cands)) {
+      let v = t.sc;
+      if (t.S.phase !== 'over') {
+        const rep = genTurns(t.S, cfg.reply, t.S.cur, budget);
+        if (rep.length) v = rep[0].S.phase === 'over' && rep[0].S.winner !== me ? -rep[0].sc : t.sc + (cfg.blend || 0) * (-rep[0].sc - t.sc);
+      }
+      if (!best || v > best.v) best = Object.assign({v}, t);
+      if (cfg.ms && Date.now() - t0 > cfg.ms) break;
+    }
+  }
+  aiPlan.last = {level, ms: Date.now() - t0, nodes: budget.n, value: best.v};
+  return best.acts;
+}
+
+/* Non-invasive hints about the rival's threats, from the viewer's point of view. */
+function rivalIntel(S, viewer) {
+  const out = [];
+  if (S.phase !== 'turn') return out;
+  const rivals = S.seats.map((s, i) => i).filter(i => isEnemy(S, i, viewer));
+  for (const op of rivals) {
+    const nm = S.seats[op].name;
+    const reach = captainReach(S, op, 4);
+    if (reach <= 4) out.push({lvl: reach <= 2 ? 'warn' : 'info', text: `${nm}'s Captain is ${reach} step${reach > 1 ? 's' : ''} from your HQ.`});
+    const held = holders(S, op).length;
+    if (held >= 2) out.push({lvl: 'warn', text: `${nm} holds ${held} Control Points: ${starsFor(held)} star${held > 2 ? 's' : ''} at the end of their turn unless you break it.`});
+    if (S.stars[op] >= S.starGoal - 1) out.push({lvl: 'warn', text: `${nm} needs only ${S.starGoal - S.stars[op]} more star${S.starGoal - S.stars[op] > 1 ? 's' : ''} to win.`});
+    let bestT = null;
+    for (const u of unitsOf(S, op)) for (const m of movesFor(S, u)) {
+      const hits = [];
+      if (u.p >= AIR0) {
+        for (const i of BOARD.paths[m.p].cells) { const t = unitAt(S, i); if (t && t.o === viewer && canAttack(u, t)) hits.push(t); }
+        const t = airUnit(S, m.to - AIR0); if (t && t.o === viewer) hits.push(t);
+      } else if (u.k !== 'captain') { const t = unitAt(S, m.to); if (t && t.o === viewer) hits.push(t); }
+      const v = hits.reduce((s, t) => s + unitValue(t), 0);
+      if (v && (!bestT || v > bestT.v)) bestT = {v, u, hits};
+    }
+    if (bestT) out.push({lvl: 'info', text: `${nm}'s ${unitLabel(bestT.u)} threatens your ${bestT.hits.map(t => UNIT_NAMES[t.k] + ' at ' + posName(t.p)).join(' and ')}.`});
+    const air = unitsOf(S, op).filter(u => u.p >= AIR0).length;
+    if (air && !unitsOf(S, viewer).some(u => u.a === 'antiair')) out.push({lvl: 'info', text: `${nm} has ${air} aircraft in the sky and you have no Anti-Air on the map.`});
+  }
+  return out.slice(0, 4);
+}
+
+</script>
+<script>
+'use strict';
+/* ?test rule tests and ?selfplay. DOM-free: ui.js renders the results. */
+
+function runTests() {
+  const out = [];
+  const T = (name, fn) => { try { const r = fn(); out.push({name, ok: r !== false, err: r === false ? 'returned false' : ''}); } catch (e) { out.push({name, ok: false, err: String(e && e.message || e)}); } };
+  const eq = (a, b, msg) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error((msg || '') + ' expected ' + JSON.stringify(b) + ' got ' + JSON.stringify(a)); return true; };
+  const yes = (c, msg) => { if (!c) throw new Error(msg || 'expected true'); return true; };
+  const C = cellOf, A = id => AIR0 + BOARD.airIdx[id];
+  const tos = (S, u) => movesFor(S, u).map(m => m.to >= AIR0 ? BOARD.air[m.to - AIR0].id : cellName(m.to)).sort();
+  const mv = (S, u, to) => play(S, {t: 'move', u: u.id, to: typeof to === 'string' && /^[NSWE]\d$/.test(to) ? A(to) : C(to),
+    p: typeof to === 'string' && /^[NSWE]\d$/.test(to) ? movesFor(S, u).find(m => m.to === A(to)).p : undefined});
+  const at = (S, rc) => unitAt(S, C(rc));
+  const B = () => blankGame();
+
+  /* ---- board integrity ---- */
+  T('board is 7 columns x 5 rows', () => eq([BOARD.cols, BOARD.rows], [7, 5]));
+  T('each Backline is its whole back row (7 cells, HQ in the middle)', () => {
+    eq(BOARD.sides.N.back.map(cellName), ['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1']);
+    eq(BOARD.sides.S.back.map(cellName), ['A5', 'B5', 'C5', 'D5', 'E5', 'F5', 'G5']);
+    return eq([cellName(BOARD.sides.N.hq), cellName(BOARD.sides.S.hq)], ['D1', 'D5']);
+  });
+  T('3 Control Points across the centre row (3,2 3,4 3,6)', () => eq(BOARD.cps, [C('3,2'), C('3,4'), C('3,6')]));
+  T('10 air spaces; Backline air is the 3 grey clouds on each back edge', () => {
+    eq(BOARD.air.length, 10);
+    eq(BOARD.sides.N.air.map(j => BOARD.air[j].id), ['N2', 'N4', 'N6']);
+    return eq(BOARD.sides.S.air.map(j => BOARD.air[j].id), ['S2', 'S4', 'S6']);
+  });
+  T('13 flight paths, 3 vertical (columns 2, 4, 6) and 2 horizontal (rows 2, 4)', () => {
+    eq(BOARD.paths.length, 13);
+    return eq(BOARD.paths.filter(p => p.id[0] === 'V' || p.id[0] === 'H').map(p => p.id), ['V2', 'V4', 'V6', 'H2', 'H4']);
+  });
+  T('every flight path is a straight line through the centres of the cells it lists', () => {
+    for (const p of BOARD.paths) {
+      const a = BOARD.air[p.a], b = BOARD.air[p.b];
+      const n = Math.max(Math.abs(b.r - a.r), Math.abs(b.c - a.c));
+      const dr = (b.r - a.r) / n, dc = (b.c - a.c) / n;
+      yes(Number.isInteger(dr) && Number.isInteger(dc), p.id + ' is not a straight line');
+      const want = [];
+      for (let s = 1; s < n; s++) want.push(cellAt(a.r + dr * s, a.c + dc * s));
+      eq(p.cells, want, p.id);
+    }
+    return true;
+  });
+  T('no two flight paths join the same pair of air spaces', () => eq(new Set(BOARD.paths.map(p => [p.a, p.b].sort().join('-'))).size, 13));
+
+  /* ---- Gruntz ---- */
+  T('Grunt moves 1 space orthogonally or diagonally', () => { const S = B(); const g = place(S, 0, 'grunt', '3,3'); return eq(tos(S, g).length, 8); });
+  T('Grunt attacks Gruntz, Captains and Trucks but not Tanks', () => {
+    const S = B(); const g = place(S, 0, 'grunt', '3,3');
+    place(S, 1, 'grunt', '2,2'); place(S, 1, 'captain', '2,3'); place(S, 1, 'truck', '2,4', 'cannon'); place(S, 1, 'tank', '3,4', 'cannon');
+    const t = tos(S, g); return yes(t.includes('B2') && t.includes('C2') && t.includes('D2') && !t.includes('D3'));
+  });
+  T('Ground units cannot move into friendly units', () => { const S = B(); const g = place(S, 0, 'grunt', '3,3'); place(S, 0, 'grunt', '3,4'); return yes(!tos(S, g).includes('D3')); });
+  T('Destroyed Gruntz and Captains return to Reinforcements', () => {
+    let S = B(); const g = place(S, 0, 'grunt', '3,3'); place(S, 1, 'grunt', '2,3'); place(S, 1, 'captain', '1,1');
+    eq(S.res[1].grunt, 4); S = mv(S, g, '2,3'); eq(S.res[1].grunt, 5); return eq(S.killed[0], 1);
+  });
+
+  /* ---- Captain ---- */
+  T('Captain cannot attack', () => { const S = B(); const c = place(S, 0, 'captain', '3,3'); place(S, 1, 'grunt', '2,3'); return yes(!tos(S, c).includes('C2')); });
+  T('Adjacent Gruntz (incl. diagonal) move with the Captain in the same direction', () => {
+    let S = B(); const c = place(S, 0, 'captain', '4,4'); place(S, 0, 'grunt', '4,3'); place(S, 0, 'grunt', '5,5');
+    S = mv(S, c, '3,4');
+    return yes(at(S, '3,4').k === 'captain' && at(S, '3,3') && at(S, '3,3').k === 'grunt' && at(S, '4,5') && at(S, '4,5').k === 'grunt' && !at(S, '4,3') && !at(S, '5,5'));
+  });
+  T('A dragged Grunt that cannot follow stays put; the Captain still moves', () => {
+    let S = B(); const c = place(S, 0, 'captain', '3,4'); place(S, 0, 'grunt', '2,3'); place(S, 0, 'tank', '1,3', 'cannon');
+    S = mv(S, c, '2,4');
+    return yes(at(S, '2,4').k === 'captain' && at(S, '2,3').k === 'grunt' && at(S, '1,3').k === 'tank');
+  });
+  T('A Grunt at the board edge stays put when the Captain moves off the edge direction', () => {
+    let S = B(); const c = place(S, 0, 'captain', '2,2'); place(S, 0, 'grunt', '1,1');
+    S = mv(S, c, '1,2'); return yes(at(S, '1,2').k === 'captain' && at(S, '1,1').k === 'grunt');
+  });
+  T('Drags resolve together: the Captain can step into the space a Grunt in front is leaving', () => {
+    let S = B(); const c = place(S, 0, 'captain', '4,4'); place(S, 0, 'grunt', '3,4');
+    yes(tos(S, c).includes('D3'), 'move offered'); S = mv(S, c, '3,4');
+    return yes(at(S, '3,4').k === 'captain' && at(S, '2,4').k === 'grunt');
+  });
+  T('A dragged Grunt destroys an enemy it can attack', () => {
+    let S = B(); const c = place(S, 0, 'captain', '4,4'); place(S, 0, 'grunt', '4,3'); place(S, 1, 'grunt', '3,3');
+    S = mv(S, c, '3,4'); return yes(at(S, '3,3').o === 0 && at(S, '3,3').k === 'grunt' && S.res[1].grunt === 5);
+  });
+  T('A dragged Grunt blocked by an enemy it cannot attack (Tank) stays put', () => {
+    let S = B(); const c = place(S, 0, 'captain', '4,4'); place(S, 0, 'grunt', '4,3'); place(S, 1, 'tank', '3,3', 'transport');
+    S = mv(S, c, '3,4'); return yes(at(S, '4,3').o === 0 && at(S, '3,3').k === 'tank');
+  });
+  T('The Captain cannot move into an enemy unit, even with Gruntz alongside', () => {
+    const S = B(); const c = place(S, 0, 'captain', '4,4'); place(S, 0, 'grunt', '4,3'); place(S, 1, 'grunt', '3,4');
+    return yes(!tos(S, c).includes('D3'));
+  });
+  T('A Captain move with drags is a single Move action', () => {
+    let S = B(); const c = place(S, 0, 'captain', '4,4'); place(S, 0, 'grunt', '4,3'); place(S, 0, 'grunt', '4,5');
+    S = mv(S, c, '3,4'); return eq([S.act, S.moves], [1, 1]);
+  });
+
+  /* ---- HQ ---- */
+  T('Captain entering the enemy HQ wins immediately (mid-turn)', () => {
+    let S = B(); const c = place(S, 0, 'captain', '2,4'); S = mv(S, c, '1,4');
+    return eq([S.phase, S.winner, S.reason], ['over', 0, 'hq']);
+  });
+  T('Captain can deploy onto its own HQ, which is not a win', () => {
+    let S = B(); S = play(S, {t: 'move', u: place(S, 0, 'grunt', '3,3').id, to: C('2,3')});
+    S = play(S, {t: 'deploy', k: 'captain', to: C('5,4')}); return eq([S.phase, at(S, '5,4').k], ['turn', 'captain']);
+  });
+  T('Any unit can move onto and off an HQ; only a Captain captures it', () => {
+    let S = B(); const g = place(S, 0, 'grunt', '2,4'); S = mv(S, g, '1,4'); eq(S.phase, 'turn');
+    S = mv(S, S.U[g.id], '2,4'); return eq(S.phase, 'turn');
+  });
+
+  /* ---- vehicles ---- */
+  T('Tank moves up to 2 orthogonally, can stop early, never diagonally', () => { const S = B(); const t = place(S, 0, 'tank', '3,4', 'transport'); return eq(tos(S, t), ['B3', 'C3', 'D1', 'D2', 'D4', 'D5', 'E3', 'F3']); });
+  T('Truck moves up to 3 in a straight line, orthogonally or diagonally', () => {
+    const S = B(); const t = place(S, 0, 'truck', '3,4', 'transport'); const m = tos(S, t);
+    return yes(m.includes('A3') && m.includes('G3') && m.includes('B1') && m.includes('F5') && m.includes('D1') && !m.includes('A1') && !m.includes('A2') && m.length === 18);
+  });
+  T('Vehicles cannot pass through units and stop on the space they attack', () => {
+    let S = B(); const t = place(S, 0, 'tank', '3,1', 'cannon'); place(S, 1, 'grunt', '3,2'); place(S, 0, 'grunt', '2,1');
+    eq(tos(S, t), ['A4', 'A5', 'B3']); S = mv(S, t, '3,2'); return yes(at(S, '3,2').k === 'tank' && !at(S, '3,3'));
+  });
+  T('Tanks can only be attacked by Bombers and Cannon vehicles', () => {
+    const S = B(); place(S, 1, 'tank', '3,4', 'transport');
+    const g = place(S, 0, 'grunt', '3,3'), f = place(S, 0, 'fighter', 'N4'), tr = place(S, 0, 'truck', '3,7', 'transport'), cn = place(S, 0, 'truck', '5,4', 'cannon');
+    return yes(!tos(S, g).includes('D3') && !tos(S, tr).includes('D3') && tos(S, cn).includes('D3') && canAttack({k: 'bomber'}, {k: 'tank'}) && !canAttack(f, {k: 'tank'}));
+  });
+  T('Trucks can be attacked by Gruntz, Fighters, Bombers and Cannon vehicles', () =>
+    yes(['grunt', 'fighter', 'bomber'].every(k => canAttack({k}, {k: 'truck'})) && canAttack({k: 'tank', a: 'cannon'}, {k: 'truck'})));
+  T('Cannon attacks all enemy ground units; Transport and Anti-Air cannot attack', () =>
+    yes(['grunt', 'captain', 'tank', 'truck'].every(k => canAttack({k: 'tank', a: 'cannon'}, {k})) &&
+      ['grunt', 'captain', 'tank', 'truck'].every(k => !canAttack({k: 'truck', a: 'transport'}, {k}) && !canAttack({k: 'tank', a: 'antiair'}, {k}))));
+  T('A destroyed vehicle leaves the game with its attachment', () => {
+    let S = B(); const c = place(S, 0, 'tank', '3,3', 'cannon'); place(S, 1, 'truck', '3,4', 'antiair');
+    S = mv(S, c, '3,4'); return eq([S.res[1].truck, S.res[1].antiair], [1, 1]);
+  });
+
+  /* ---- aircraft ---- */
+  T('Aircraft move along 1 flight path to a connected air space', () => { const S = B(); const f = place(S, 0, 'fighter', 'S4'); return eq(tos(S, f), ['E2', 'N4', 'W2']); });
+  T('A Fighter destroys every enemy Grunt, Captain and Truck it passes over, but not Tanks', () => {
+    let S = B(); const f = place(S, 0, 'fighter', 'S4');
+    place(S, 1, 'grunt', '4,4'); place(S, 1, 'tank', '3,4', 'transport'); place(S, 1, 'truck', '2,4', 'transport'); place(S, 1, 'captain', '1,4'); place(S, 0, 'grunt', '5,4');
+    S = mv(S, f, 'N4'); return yes(!at(S, '4,4') && at(S, '3,4').k === 'tank' && !at(S, '2,4') && !at(S, '1,4') && at(S, '5,4').o === 0);
+  });
+  T('A Bomber destroys Tanks and Trucks it passes over, not Gruntz', () => {
+    let S = B(); const b = place(S, 0, 'bomber', 'W2');
+    place(S, 1, 'tank', '2,2', 'cannon'); place(S, 1, 'grunt', '2,3'); place(S, 1, 'truck', '2,6', 'cannon');
+    S = mv(S, b, 'E2'); return yes(!at(S, '2,2') && at(S, '2,3') && !at(S, '2,6'));
+  });
+  T('An enemy Anti-Air on a path blocks it in both directions; a friendly one does not', () => {
+    const S = B(); const f = place(S, 0, 'fighter', 'W2'); const f2 = place(S, 0, 'fighter', 'E2');
+    place(S, 1, 'tank', '2,4', 'antiair'); place(S, 0, 'truck', '1,1', 'antiair');
+    return yes(!tos(S, f).includes('E2') && !tos(S, f2).includes('W2') && tos(S, f).includes('N2'));
+  });
+  T('A Fighter destroys an enemy aircraft in the air space it enters', () => {
+    let S = B(); const f = place(S, 0, 'fighter', 'W2'); place(S, 1, 'bomber', 'E2');
+    S = mv(S, f, 'E2'); return yes(airUnit(S, BOARD.airIdx.E2).o === 0 && S.lost[1] === 1);
+  });
+  T('A Bomber cannot enter an air space with an enemy aircraft; no aircraft enters a friendly one', () => {
+    const S = B(); const b = place(S, 0, 'bomber', 'W2'); place(S, 1, 'fighter', 'E2'); place(S, 0, 'fighter', 'N2');
+    const t = tos(S, b); return yes(!t.includes('E2') && !t.includes('N2'));
+  });
+  T('An aircraft is fixed as Fighter or Bomber; 3 per game and destroyed ones are not refunded', () => {
+    let S = B(); place(S, 0, 'fighter', 'S2'); place(S, 0, 'bomber', 'S4'); const f = place(S, 0, 'fighter', 'S6');
+    eq(S.res[0].air, 0); place(S, 1, 'fighter', 'E4');
+    S.cur = 1; S = mv(S, S.U[S.air[BOARD.airIdx.E4]], 'S6');
+    return yes(S.res[0].air === 0 && !S.U[f.id]);
+  });
+
+  /* ---- deploying ---- */
+  T('Ground units deploy only into empty friendly Backline cells (incl. HQ)', () => {
+    let S = B(); place(S, 0, 'grunt', '5,1'); S.act = 2;
+    const cells = new Set(legalActions(S).filter(a => a.k === 'captain').map(a => cellName(a.to)));
+    return eq([...cells].sort(), ['B5', 'C5', 'D5', 'E5', 'F5', 'G5']);
+  });
+  T('Gruntz (not the Captain) can deploy next to a friendly Transport, never onto a Control Point', () => {
+    const S = B(); place(S, 0, 'truck', '3,3', 'transport'); S.act = 2;
+    const L = legalActions(S);
+    const g = L.filter(a => a.k === 'grunt').map(a => cellName(a.to)), c = L.filter(a => a.k === 'captain').map(a => cellName(a.to));
+    return yes(g.includes('C2') && g.includes('D4') && !g.includes('B3') && !g.includes('D3') && !c.includes('C2'));
+  });
+  T('Aircraft deploy only into empty Backline air spaces', () => {
+    const S = B(); S.act = 2; place(S, 0, 'fighter', 'S2');
+    return eq([...new Set(legalActions(S).filter(a => a.k === 'bomber').map(a => BOARD.air[a.to - AIR0].id))], ['S4', 'S6']);
+  });
+  T('A unit type with none left in Reinforcements cannot be deployed', () => {
+    const S = B(); S.act = 2; S.res[0].captain = 0; S.res[0].cannon = 0; S.res[0].tank = 0;
+    const L = legalActions(S); return yes(!L.some(a => a.k === 'captain' || a.a === 'cannon' || a.k === 'tank'));
+  });
+
+  /* ---- turn structure ---- */
+  T('The first action of a turn must be a Move when one is possible', () => {
+    const S = B(); place(S, 0, 'grunt', '3,3'); return yes(legalActions(S).every(a => a.t === 'move'));
+  });
+  T('Move 1 + Deploy 2 and Move 2 + Deploy 1 are both legal; no Move after a Deploy', () => {
+    let S = B(); const g = place(S, 0, 'grunt', '3,3');
+    S = mv(S, g, '2,3'); yes(legalActions(S).some(a => a.t === 'move') && legalActions(S).some(a => a.t === 'deploy'));
+    let S1 = play(S, {t: 'deploy', k: 'grunt', to: C('5,1')}); yes(legalActions(S1).every(a => a.t === 'deploy'), 'no move after deploy');
+    S1 = play(S1, {t: 'deploy', k: 'grunt', to: C('5,2')}); eq(legalActions(S1), [{t: 'end'}]);
+    let S2 = mv(S, S.U[g.id], '1,3'); yes(legalActions(S2).every(a => a.t === 'deploy'), 'third action is a deploy');
+    S2 = play(S2, {t: 'deploy', k: 'grunt', to: C('5,1')}); return eq(legalActions(S2), [{t: 'end'}]);
+  });
+  T('An action with no legal option becomes a skip', () => {
+    let S = B(); yes(legalActions(S).length === 1 && legalActions(S)[0].t === 'skip', 'no units: move skipped');
+    S = play(S, {t: 'skip'}); return yes(legalActions(S).every(a => a.t === 'deploy'));
+  });
+  T('A unit can move twice in one turn and attack each time', () => {
+    let S = B(); const g = place(S, 0, 'grunt', '4,4'); place(S, 1, 'grunt', '3,4'); place(S, 1, 'grunt', '2,4');
+    S = mv(S, g, '3,4'); S = mv(S, S.U[g.id], '2,4'); return eq([S.res[1].grunt, S.moves], [5, 2]);
+  });
+
+  /* ---- setup ---- */
+  T('Setup: the Attacker deploys 3 units (aircraft allowed), then the Defender, with no scoring; then the Attacker moves first', () => {
+    let S = newGame({seed: 7, attacker: 1});
+    eq([S.phase, S.cur], ['setup', 1]);
+    S = play(S, {t: 'deploy', k: 'fighter', to: A('N2')}); S = play(S, {t: 'deploy', k: 'grunt', to: C('1,1')}); S = play(S, {t: 'deploy', k: 'tank', a: 'cannon', to: C('1,2')});
+    eq(legalActions(S), [{t: 'end'}]); S = play(S, {t: 'end'}); eq([S.phase, S.cur], ['setup', 0]);
+    for (const c of ['5,1', '5,2', '5,3']) S = play(S, {t: 'deploy', k: 'grunt', to: C(c)});
+    S = play(S, {t: 'end'}); return eq([S.phase, S.cur, S.turn, S.stars], ['turn', 1, 1, [0, 0]]);
+  });
+  T('Random attacker is chosen by the seeded RNG (same seed, same attacker)', () => eq(newGame({seed: 42, attacker: 'random'}).attacker, newGame({seed: 42, attacker: 'random'}).attacker));
+
+  /* ---- scoring ---- */
+  const endWith = (S) => { S.act = 3; return play(S, {t: 'end'}); };
+  T('Holding 2 Control Points with Gruntz/Captain earns 1 star; all 3 earns 2', () => {
+    let S = B(); place(S, 0, 'grunt', '3,2'); place(S, 0, 'captain', '3,4'); S = endWith(S); eq(S.stars, [1, 0]);
+    let S2 = B(); place(S2, 0, 'grunt', '3,2'); place(S2, 0, 'grunt', '3,4'); place(S2, 0, 'grunt', '3,6'); S2 = endWith(S2); return eq(S2.stars, [2, 0]);
+  });
+  T('Vehicles on Control Points do not count', () => { let S = B(); place(S, 0, 'grunt', '3,2'); place(S, 0, 'tank', '3,4', 'cannon'); S = endWith(S); return eq(S.stars, [0, 0]); });
+  T('Only the active player scores at the end of their own turn', () => { let S = B(); place(S, 1, 'grunt', '3,2'); place(S, 1, 'grunt', '3,4'); S = endWith(S); return eq(S.stars, [0, 0]); });
+  T('Reaching the star goal wins at the end of the turn (goal 3)', () => {
+    let S = B(); S.stars[0] = 2; place(S, 0, 'grunt', '3,2'); place(S, 0, 'grunt', '3,4'); S = endWith(S); return eq([S.phase, S.winner, S.reason], ['over', 0, 'stars']);
+  });
+  T('Star goal 5 keeps playing past 3 stars; no shared pool limit', () => {
+    let S = blankGame({starGoal: 5}); S.stars = [2, 4]; place(S, 0, 'grunt', '3,2'); place(S, 0, 'grunt', '3,4'); place(S, 0, 'grunt', '3,6');
+    S = endWith(S); return eq([S.phase, S.stars], ['turn', [4, 4]]);
+  });
+
+  /* ---- engine plumbing ---- */
+  T('History records each turn with its actor and events', () => {
+    let S = B(); const g = place(S, 0, 'grunt', '4,4'); S = mv(S, g, '3,4'); S = play(S, {t: 'deploy', k: 'grunt', to: C('5,1')});
+    S = play(S, {t: 'deploy', k: 'grunt', to: C('5,2')}); S = play(S, {t: 'end'});
+    return yes(S.history.length === 1 && S.history[0].actor === 0 && S.history[0].events.length === 3);
+  });
+  T('Simulated states never write history or log', () => {
+    let S = simOf(B()); const g = place(S, 0, 'grunt', '4,4'); S = apply(S, {t: 'move', u: g.id, to: C('3,4')}); S.act = 3; S = apply(S, {t: 'end'});
+    return eq([S.history.length, S.log.length], [0, 0]);
+  });
+  T('Result object has stable fields', () => {
+    let S = B(); const c = place(S, 0, 'captain', '2,4'); S = mv(S, c, '1,4'); const r = result(S);
+    return yes(r.over && r.winner === 0 && r.reason === 'hq' && r.rows[0].total === 0 && r.rows[0].name === 'Blue' && r.rank[0] === 0 && 'unitsLost' in r.rows[1]);
+  });
+  T('Turn cap ends the game as a draw (selfplay only)', () => { let S = blankGame({turnCap: 1}); S.act = 3; S = play(S, {t: 'end'}); return eq([S.phase, S.winner, S.reason], ['over', -1, 'cap']); });
+
+  /* ---- AI ---- */
+  T('AI takes an immediate HQ capture', () => {
+    const S = B(); place(S, 0, 'captain', '3,4'); place(S, 0, 'grunt', '5,1');
+    const acts = aiPlan(S, 'normal'); let R = S; for (const a of acts) R = play(R, a); return eq([R.winner, R.reason], [0, 'hq']);
+  });
+  T('AI blocks a Captain that is 2 steps from its HQ', () => {
+    let S = B(); S.cur = 1; place(S, 0, 'captain', '3,4'); place(S, 1, 'grunt', '1,1'); place(S, 1, 'grunt', '1,7');
+    const acts = aiPlan(S, 'normal'); for (const a of acts) S = play(S, a);
+    return yes(captainReach(S, 0, 2) > 2 || !captainOf(S, 0));
+  });
+  T('AI Normal is deterministic for the same position', () => {
+    const S = newGame({seed: 99, attacker: 0}); return eq(aiPlan(S, 'normal').map(actKey), aiPlan(S, 'normal').map(actKey));
+  });
+  T('AI plays only legal actions at every level', () => {
+    for (const lvl of ['easy', 'normal', 'hard']) { let S = newGame({seed: 5, attacker: 0}); for (let t = 0; t < 4; t++) for (const a of aiPlan(S, lvl)) S = play(S, a); }
+    return true;
+  });
+
+  /* ---- version ---- */
+  T('CHANGELOG is newest first (major then minor) and starts with APP_VERSION', () => {
+    const num = v => v.split('.').map(Number);
+    for (let i = 1; i < CHANGELOG.length; i++) {
+      const [a1, b1] = num(CHANGELOG[i - 1].v), [a2, b2] = num(CHANGELOG[i].v);
+      yes(a1 > a2 || (a1 === a2 && b1 > b2), CHANGELOG[i - 1].v + ' before ' + CHANGELOG[i].v);
+    }
+    return eq(CHANGELOG[0].v, APP_VERSION);
+  });
+  return out;
+}
+
+/* AI against an auto-playing "human" seat, to the end of the game. Calls onStep(S) after each turn and onDone(info). */
+function selfplay(opts, onStep, onDone) {
+  const levels = opts.levels || ['normal', 'normal'];
+  let S = newGame({seed: opts.seed != null ? opts.seed : 12345, attacker: opts.attacker != null ? opts.attacker : 'random', starGoal: opts.starGoal || 3, turnCap: opts.turnCap || 80,
+    seats: [{color: 'blue', type: 'human', level: levels[0]}, {color: 'green', type: 'ai', level: levels[1]}]});
+  let steps = 0;
+  const tick = () => {
+    try {
+      for (const a of aiPlan(S, S.seats[S.cur].level)) { S = play(S, a); steps++; if (S.phase === 'over') break; }
+      if (onStep) onStep(S);
+      if (S.phase === 'over') {
+        const r = result(S);
+        onDone({ok: true, S, steps, text: (r.winner < 0 ? 'DRAW (cap) ' : '') + `${S.stars[0]}-${S.stars[1]} stars, ` +
+          (r.winner < 0 ? 'no winner' : `${S.seats[r.winner].name} wins by ${r.reason === 'hq' ? 'HQ capture' : 'stars'}`) + ` (turn ${S.turn})`});
+        return;
+      }
+      setTimeout(tick, 0);
+    } catch (e) { onDone({ok: false, S, steps, text: String(e && e.stack || e)}); }
+  };
+  setTimeout(tick, 0);
+}
+
+</script>
+<script>
+'use strict';
+/* UI: SVG board, panels, landing, popups, statistics, ?test / ?selfplay / ?debug / ?edit. */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
+const Q = new URLSearchParams(location.search);
+let MODE = Q.has('test') ? 'test' : Q.has('selfplay') ? 'selfplay' : Q.has('edit') ? 'edit' : 'play';
+const DEBUG = Q.has('debug') || MODE === 'edit';
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('gruntz.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('gruntz.' + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem('gruntz.' + k); } catch (e) {} }
+};
+const COLORS = {blue: {fill: '#4f8fe0', dark: '#1b3b6b', light: '#cfe1fa', name: 'Blue'}, green: {fill: '#8fd14f', dark: '#355f14', light: '#dcf3c4', name: 'Green'}};
+const LEVEL_NAMES = {easy: 'Easy', normal: 'Normal', hard: 'Hard'};
+const AI_DELAY = 480;
+
+let S = null;
+const G = {undo: [], sel: null, deploy: null, busy: false, armed: 0, recorded: false, setup: null, view: 0};
+
+/* ---------- small helpers ---------- */
+function toast(msg, ms = 2600) {
+  const t = $('toast'); t.innerHTML = msg; t.classList.add('on');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), ms);
+}
+const seatName = i => S.seats[i].name;
+const isHuman = i => S.seats[i].type === 'human';
+const humanCount = () => S.seats.filter(s => s.type === 'human').length;
+function viewerSeat() {
+  if (!S) return 0;
+  if (isHuman(S.cur)) return S.cur;
+  const h = S.seats.findIndex(s => s.type === 'human');
+  return h >= 0 ? h : 0;
+}
+function canAct() { return MODE === 'play' && S && S.phase !== 'over' && isHuman(S.cur) && !G.busy; }
+
+/* ---------- board geometry ---------- */
+function flip() { return S && S.seats[G.view] && S.seats[G.view].side === 'N'; }
+function xy(r, c) {
+  if (flip()) { r = BOARD.rows + 1 - r; c = BOARD.cols + 1 - c; }
+  return [c * 100, r * 100];
+}
+const cellXY = i => xy(BOARD.cells[i].r, BOARD.cells[i].c);
+const airXY = j => xy(BOARD.air[j].r, BOARD.air[j].c);
+const posXY = p => p >= AIR0 ? airXY(p - AIR0) : cellXY(p);
+
+/* ---------- unit art (original SVG) ---------- */
+function glyph(k, a, col, size = 1) {
+  const f = col.fill, d = col.dark, sw = 3;
+  let g = '';
+  if (k === 'grunt' || k === 'captain') {
+    g += `<path d="M-19,28 L-19,4 Q-19,-6 -12,-9 L12,-9 Q19,-6 19,4 L19,28 Z" fill="${f}" stroke="${d}" stroke-width="${sw}"/>`;
+    g += `<rect x="-11" y="-6" width="22" height="12" rx="4" fill="${col.light}" stroke="${d}" stroke-width="2"/>`;
+    if (k === 'grunt') {
+      g += `<path d="M-23,-6 Q-23,-31 0,-31 Q23,-31 23,-6 Z" fill="${f}" stroke="${d}" stroke-width="${sw}"/>`;
+      g += `<rect x="6" y="9" width="26" height="6" rx="2" fill="${d}"/>`;
+    } else {
+      g += `<path d="M-15,-9 L-15,-26 Q0,-36 15,-26 L15,-9 Z" fill="${f}" stroke="${d}" stroke-width="${sw}"/>`;
+      g += `<path d="M-20,-9 L22,-9 L26,-4 L-20,-4 Z" fill="${d}"/>`;
+      g += `<path d="M0,8 l3.5,7 7.5,1 -5.5,5 1.5,7.5 -7,-3.5 -7,3.5 1.5,-7.5 -5.5,-5 7.5,-1z" fill="#f6d34a" stroke="${d}" stroke-width="1.2"/>`;
+    }
+  } else if (k === 'tank') {
+    g += `<rect x="-32" y="-32" width="64" height="64" rx="7" fill="${f}" stroke="${d}" stroke-width="${sw}"/>`;
+    for (let i = -24; i <= 24; i += 8) g += `<rect x="${i - 2}" y="-30" width="4" height="10" fill="${d}"/><rect x="${i - 2}" y="20" width="4" height="10" fill="${d}"/>`;
+    g += `<circle r="5" fill="#d9d2c1" stroke="${d}" stroke-width="2"/>`;
+  } else if (k === 'truck') {
+    g += `<rect x="-34" y="-12" width="68" height="24" rx="5" fill="${f}" stroke="${d}" stroke-width="${sw}"/>`;
+    g += `<rect x="8" y="-28" width="16" height="18" rx="3" fill="${f}" stroke="${d}" stroke-width="${sw}"/>`;
+    g += `<circle cx="-18" cy="14" r="10" fill="${d}"/><circle cx="18" cy="14" r="10" fill="${d}"/><circle cx="-18" cy="14" r="4" fill="${col.light}"/><circle cx="18" cy="14" r="4" fill="${col.light}"/>`;
+  } else if (k === 'fighter' || k === 'bomber') {
+    g += `<circle r="34" fill="${f}" stroke="${d}" stroke-width="${sw}"/>`;
+    if (k === 'fighter') g += `<path d="M-3,-24 L3,-24 L4,-6 L26,-2 L26,4 L4,4 L3,16 L10,20 L10,24 L-10,24 L-10,20 L-3,16 L-4,4 L-26,4 L-26,-2 L-4,-6 Z" fill="${d}"/>`;
+    else g += `<path d="M-6,-24 L6,-24 L8,-6 L28,-4 L28,6 L8,6 L6,16 L14,20 L14,25 L-14,25 L-14,20 L-6,16 L-8,6 L-28,6 L-28,-4 L-8,-6 Z" fill="${d}"/><circle cx="-16" cy="1" r="4" fill="${col.light}"/><circle cx="16" cy="1" r="4" fill="${col.light}"/>`;
+  }
+  if (a) g += `<g transform="translate(${k === 'tank' ? 0 : -6},${k === 'tank' ? -2 : -16})">${attGlyph(a, col)}</g>`;
+  return size === 1 ? g : `<g transform="scale(${size})">${g}</g>`;
+}
+function attGlyph(a, col) {
+  const d = col.dark;
+  let g = `<circle r="15" fill="${col.light}" stroke="${d}" stroke-width="2.5"/>`;
+  if (a === 'cannon') g += `<circle r="7" fill="${d}"/><rect x="-2.5" y="-17" width="5" height="12" fill="${d}"/>`;
+  else if (a === 'transport') g += [[-5, -5], [5, -5], [-5, 5], [5, 5]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.2" fill="${d}"/>`).join('');
+  else if (a === 'antiair') g += `<rect x="-9" y="2" width="18" height="7" rx="2" fill="${d}"/><rect x="-2" y="-14" width="5" height="18" rx="1" fill="${d}" transform="rotate(35)"/><rect x="4" y="-14" width="5" height="18" rx="1" fill="${d}" transform="rotate(35)"/>`;
+  return g;
+}
+function iconSVG(k, a, color, px = 30) {
+  return `<svg viewBox="-40 -40 80 80" width="${px}" height="${px}" aria-hidden="true">${glyph(k, a, COLORS[color])}</svg>`;
+}
+function cloudPath() {
+  return 'M-34,10 Q-46,10 -44,-2 Q-44,-14 -30,-13 Q-28,-30 -10,-28 Q0,-40 14,-30 Q32,-34 34,-16 Q48,-12 44,2 Q46,16 30,15 Q24,26 8,22 Q-4,30 -16,22 Q-30,26 -34,10 Z';
+}
+
+/* ---------- board rendering ---------- */
+function renderBoard() {
+  const svg = $('board');
+  if (!S) { svg.innerHTML = ''; return; }
+  const L = canAct() ? legalActions(S) : [];
+  const o = [];
+  o.push(`<defs>
+    <pattern id="grain" width="40" height="40" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill="#ddd5c4"/><path d="M0 10h40M0 27h40" stroke="#cfc6b2" stroke-width="1"/><path d="M8 0v40M30 0v40" stroke="#d6cdb9" stroke-width=".8"/></pattern>
+    <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="#77716a"/><path d="M0 0v12" stroke="#6a645d" stroke-width="5"/></pattern>
+  </defs>`);
+  o.push(`<rect x="-60" y="-60" width="920" height="720" rx="26" fill="url(#grain)" stroke="#a89f8c" stroke-width="4"/>`);
+  o.push(`<rect x="22" y="22" width="756" height="556" rx="16" fill="none" stroke="#3a3530" stroke-width="3" stroke-dasharray="2 9"/>`);
+  for (let x = 34; x <= 766; x += 22) o.push(`<path d="M${x - 6},16 l12,12 M${x + 6},16 l-12,12 M${x - 6},572 l12,12 M${x + 6},572 l-12,12" stroke="#2f2b27" stroke-width="2.4"/>`);
+  for (let y = 38; y <= 562; y += 22) o.push(`<path d="M16,${y - 6} l12,12 M28,${y - 6} l-12,12 M772,${y - 6} l12,12 M784,${y - 6} l-12,12" stroke="#2f2b27" stroke-width="2.4"/>`);
+  // cells
+  for (const c of BOARD.cells) {
+    const [x, y] = cellXY(c.i);
+    o.push(`<rect x="${x - 44}" y="${y - 44}" width="88" height="88" rx="5" fill="${c.back ? 'url(#hatch)' : '#e7e0d0'}" stroke="${c.back ? '#5b5650' : '#cbc2ad'}" stroke-width="2" opacity="${c.back ? .9 : 1}"/>`);
+    if (c.cp) o.push(`<g transform="translate(${x},${y})" opacity=".9"><circle r="34" fill="none" stroke="#c4302b" stroke-width="5"/><circle r="22" fill="none" stroke="#c4302b" stroke-width="3"/><circle r="9" fill="#c4302b"/><path d="M-40,0h80M0,-40v80" stroke="#c4302b" stroke-width="2"/></g>`);
+    if (c.hq) o.push(`<g transform="translate(${x},${y})"><circle r="38" fill="#2f5a2c" stroke="#1d3a1b" stroke-width="3"/><circle r="27" fill="#e8dfc8"/><path d="M0,-24 l7,15 16,2 -12,11 3,16 -14,-8 -14,8 3,-16 -12,-11 16,-2z" fill="#f2b520" stroke="#8a5f00" stroke-width="2"/></g>`);
+  }
+  // edge labels (columns A-G, rows 1-5)
+  for (let c = 1; c <= BOARD.cols; c++) { const [x] = xy(1, c); o.push(`<text x="${x}" y="655" text-anchor="middle" font-size="22" fill="#6d6457" font-weight="700">${'ABCDEFG'[c - 1]}</text>`); }
+  for (let r = 1; r <= BOARD.rows; r += 2) { const [, y] = xy(r, 1); o.push(`<text x="-46" y="${y + 8}" text-anchor="middle" font-size="22" fill="#6d6457" font-weight="700">${r}</text>`); }
+  // flight paths
+  for (const p of BOARD.paths) {
+    const [x1, y1] = airXY(p.a), [x2, y2] = airXY(p.b);
+    o.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fffdf6" stroke-width="4" stroke-dasharray="9 9" opacity=".85" stroke-linecap="round"/>`);
+  }
+  // clouds
+  for (const a of BOARD.air) {
+    const [x, y] = airXY(a.j);
+    o.push(`<path transform="translate(${x},${y})" d="${cloudPath()}" fill="${a.back ? '#a9a49b' : '#fbfbf7'}" stroke="${a.back ? '#6d6860' : '#b9b5aa'}" stroke-width="3"/>`);
+  }
+  // last turn markers
+  const evs = S.log.length ? S.log : (S.history.length ? S.history[S.history.length - 1].events : []);
+  for (const e of evs) {
+    if (e.e === 'move') {
+      const [x1, y1] = posXY(e.from), [x2, y2] = posXY(e.to), col = COLORS[S.seats[e.o].color];
+      o.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col.dark}" stroke-width="5" stroke-dasharray="3 7" opacity=".55" stroke-linecap="round"/><circle cx="${x1}" cy="${y1}" r="9" fill="${col.fill}" opacity=".6"/>`);
+    } else if (e.e === 'kill') {
+      const [x, y] = posXY(e.at);
+      o.push(`<path transform="translate(${x},${y})" d="M-22,-22L22,22M22,-22L-22,22" stroke="#c4302b" stroke-width="7" opacity=".6" stroke-linecap="round"/>`);
+    }
+  }
+  // highlights
+  const sel = G.sel != null ? S.U[G.sel] : null;
+  if (sel) {
+    const [x, y] = posXY(sel.p);
+    o.push(`<circle cx="${x}" cy="${y}" r="44" fill="none" stroke="#f2c230" stroke-width="6" class="pulse"/>`);
+    for (const m of L.filter(a => a.t === 'move' && a.u === sel.id)) {
+      const [tx, ty] = posXY(m.to);
+      if (m.p != null) {
+        const p = BOARD.paths[m.p], [ax, ay] = airXY(p.a), [bx, by] = airXY(p.b);
+        o.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#f2c230" stroke-width="7" opacity=".55" stroke-linecap="round"/>`);
+        for (const i of p.cells) { const v = unitAt(S, i); if (v && isEnemy(S, v.o, sel.o) && canAttack(sel, v)) { const [kx, ky] = cellXY(i); o.push(`<circle cx="${kx}" cy="${ky}" r="40" fill="none" stroke="#e0392f" stroke-width="5" stroke-dasharray="8 6"/>`); } }
+        const dv = airUnit(S, m.to - AIR0);
+        o.push(`<circle cx="${tx}" cy="${ty}" r="${dv ? 44 : 18}" fill="${dv ? 'none' : '#f2c230'}" stroke="${dv ? '#e0392f' : '#8a6a00'}" stroke-width="${dv ? 6 : 3}"/>`);
+      } else {
+        const tgt = unitAt(S, m.to);
+        o.push(tgt ? `<circle cx="${tx}" cy="${ty}" r="42" fill="none" stroke="#e0392f" stroke-width="6"/><path transform="translate(${tx},${ty})" d="M-14,0h28M0,-14v28" stroke="#e0392f" stroke-width="4"/>`
+          : `<circle cx="${tx}" cy="${ty}" r="16" fill="#f2c230" stroke="#8a6a00" stroke-width="3"/>`);
+      }
+    }
+  }
+  if (G.deploy) {
+    for (const m of L.filter(a => a.t === 'deploy' && a.k === G.deploy.k && (a.a || null) === (G.deploy.a || null))) {
+      const [tx, ty] = posXY(m.to);
+      o.push(`<rect x="${tx - 40}" y="${ty - 40}" width="80" height="80" rx="${m.to >= AIR0 ? 40 : 10}" fill="#f2c23044" stroke="#f2c230" stroke-width="5" stroke-dasharray="10 6" class="pulse"/>`);
+    }
+  }
+  // units
+  for (const id in S.U) {
+    const u = S.U[id], [x, y] = posXY(u.p), col = COLORS[S.seats[u.o].color];
+    o.push(`<g class="unit" transform="translate(${x},${y})">${glyph(u.k, u.a, col)}</g>`);
+  }
+  // debug overlay
+  if (DEBUG) {
+    const pal = ['#d33', '#36c', '#2a2', '#c6c', '#e80', '#0aa', '#963', '#555', '#a0a', '#08f', '#f06', '#6a0', '#00a'];
+    BOARD.paths.forEach((p, k) => {
+      const [x1, y1] = airXY(p.a), [x2, y2] = airXY(p.b), mx = (x1 + x2) / 2 + (k % 3 - 1) * 10, my = (y1 + y2) / 2 + (k % 2 ? 12 : -8);
+      o.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${pal[k % pal.length]}" stroke-width="3" opacity=".8"/><text x="${mx}" y="${my}" font-size="15" font-weight="700" fill="${pal[k % pal.length]}" stroke="#fff" stroke-width="3" paint-order="stroke" text-anchor="middle">${p.id}</text>`);
+    });
+    for (const c of BOARD.cells) { const [x, y] = cellXY(c.i); o.push(`<text x="${x - 40}" y="${y - 28}" font-size="14" fill="#000" stroke="#fff" stroke-width="3" paint-order="stroke">${c.r},${c.c}</text>`); }
+    for (const a of BOARD.air) { const [x, y] = airXY(a.j); o.push(`<text x="${x}" y="${y + 6}" font-size="18" font-weight="800" text-anchor="middle" fill="#000" stroke="#fff" stroke-width="3" paint-order="stroke">${a.id}</text>`); }
+  }
+  // hit targets
+  for (const c of BOARD.cells) { const [x, y] = cellXY(c.i); o.push(`<rect class="hit" data-c="${c.i}" x="${x - 48}" y="${y - 48}" width="96" height="96"/>`); }
+  for (const a of BOARD.air) { const [x, y] = airXY(a.j); o.push(`<circle class="hit" data-a="${a.j}" cx="${x}" cy="${y}" r="46"/>`); }
+  svg.innerHTML = o.join('');
+}
+
+/* ---------- side panel ---------- */
+function statusHTML() {
+  if (!S) return '';
+  if (S.phase === 'over') {
+    const r = result(S);
+    return r.winner < 0 ? '<b>Game over: no winner.</b>' : `<b>${esc(seatName(r.winner))} wins</b> by ${r.reason === 'hq' ? 'capturing the enemy HQ' : 'earning ' + S.starGoal + ' Victory Stars'}.`;
+  }
+  const nm = esc(seatName(S.cur));
+  if (!isHuman(S.cur)) return `<b>${nm}</b> (AI ${LEVEL_NAMES[S.seats[S.cur].level]}) is planning&hellip;`;
+  const sl = slot(S), you = humanCount() > 1 ? nm : 'Your';
+  if (S.phase === 'setup') return sl === 'end' ? `<b>${you} setup is done.</b> Tap Done.` : `<b>${you} setup:</b> deploy ${S.setupLeft} more unit${S.setupLeft > 1 ? 's' : ''} in your Backline (shaded row) or Backline air spaces (grey clouds).`;
+  const n = S.act + 1;
+  if (sl === 'move') return `<b>Action 1 of 3: Move.</b> Tap one of your units, then a highlighted space.`;
+  if (sl === 'moveOrDeploy') return `<b>Action 2 of 3:</b> Move again (any unit), or start deploying from Reinforcements.`;
+  if (sl === 'deploy') return `<b>Action ${n} of 3: Deploy.</b> Pick a unit from Reinforcements, then a highlighted space.`;
+  return `<b>Turn complete.</b> Tap Done to end your turn${S.phase === 'turn' ? ' and score Control Points' : ''}.`;
+}
+function renderPanel() {
+  if (!S || MODE === 'edit') return;
+  $('players').innerHTML = S.seats.map((s, i) => {
+    const col = COLORS[s.color], role = i === S.attacker ? 'Attacker' : 'Defender';
+    const who = s.type === 'ai' ? `AI ${LEVEL_NAMES[s.level]}` : (humanCount() > 1 ? 'Human' : 'You');
+    const stars = '&#9733;'.repeat(Math.min(S.stars[i], 12)) + `<i>${'&#9733;'.repeat(Math.max(0, S.starGoal - S.stars[i]))}</i>`;
+    return `<div class="pcard${i === S.cur && S.phase !== 'over' ? ' on' : ''}"><span class="sw" style="background:${col.fill}"></span><div><div class="nm">${esc(s.name)}</div><div class="meta">${who} &middot; ${role}</div></div><div class="st" title="${S.stars[i]} of ${S.starGoal} Victory Stars">${stars}</div></div>`;
+  }).join('');
+  $('topStars').innerHTML = S.seats.map((s, i) => `<span class="ts" style="color:${COLORS[s.color].fill}">${esc(s.name)} ${S.stars[i]}/${S.starGoal}&#9733;</span>`).join('');
+  $('status').innerHTML = statusHTML();
+  const L = canAct() ? legalActions(S) : [];
+  $('undoBtn').disabled = !canAct() || !G.undo.length;
+  const done = $('doneBtn');
+  done.disabled = !L.some(a => a.t === 'end');
+  done.textContent = G.armed && !done.disabled ? 'Confirm end turn' : 'Done';
+  done.classList.toggle('armed', !!G.armed && !done.disabled);
+  // tray
+  const seat = canAct() ? S.cur : viewerSeat(), r = S.res[seat], color = S.seats[seat].color;
+  const dep = L.filter(a => a.t === 'deploy');
+  const items = [['grunt', 'Grunt', r.grunt], ['captain', 'Captain', r.captain], ['tank', 'Tank', r.tank], ['truck', 'Truck', r.truck], ['air', 'Aircraft', r.air]];
+  $('trayBtns').innerHTML = items.map(([k, nm, n]) => {
+    const ok = dep.some(a => k === 'air' ? (a.k === 'fighter' || a.k === 'bomber') : a.k === k);
+    const sel = G.deploy && (G.deploy.k === k || (k === 'air' && (G.deploy.k === 'fighter' || G.deploy.k === 'bomber')));
+    return `<button class="tbtn${sel ? ' sel' : ''}" data-dep="${k}" ${ok ? '' : 'disabled'} title="Deploy a ${nm}">${iconSVG(k === 'air' ? 'fighter' : k, null, color)}<span>${nm}</span><b>&times;${n}</b></button>`;
+  }).join('');
+  $('trayAtt').innerHTML = `${esc(S.seats[seat].name)} attachments: Cannon ${r.cannon} &middot; Transport ${r.transport} &middot; Anti-Air ${r.antiair}` + (G.deploy ? `<br>Deploying: <b>${UNIT_NAMES[G.deploy.k]}${G.deploy.a ? ' with ' + UNIT_NAMES[G.deploy.a] : ''}</b>` : '');
+  // intel
+  const viewer = viewerSeat();
+  const intel = rivalIntel(S, viewer);
+  $('intel').innerHTML = intel.length ? intel.map(h => `<li class="${h.lvl}">${esc(h.text)}</li>`).join('') : '<li>No immediate threats spotted.</li>';
+  $('journal').innerHTML = journalLines().slice(0, 40).map(l => `<li>${l}</li>`).join('');
+  if (DEBUG && MODE !== 'edit') renderDebugPanel();
+}
+function evText(e) {
+  const who = `<b style="color:${COLORS[S.seats[e.o].color].dark}">${esc(seatName(e.o))}</b>`;
+  const nm = UNIT_NAMES[e.k] + (e.a ? ` (${UNIT_NAMES[e.a]})` : '');
+  if (e.e === 'move') return `${who} ${nm} ${posName(e.from)} &rarr; ${posName(e.to)}${e.drag ? ' (with the Captain)' : ''}`;
+  if (e.e === 'deploy') return `${who} deploys ${nm} at ${posName(e.to)}`;
+  if (e.e === 'kill') return `&#10006; ${esc(seatName(e.by))}'s ${UNIT_NAMES[e.byK]} destroys ${who}'s ${nm} at ${posName(e.at)}`;
+  if (e.e === 'score') return `&#9733; ${who} earns ${e.n} Victory Star${e.n > 1 ? 's' : ''} (${e.total})`;
+  if (e.e === 'skip') return `${who} has no legal ${e.slot === 'move' ? 'move' : 'action'}: skipped`;
+  if (e.e === 'win') return e.o < 0 ? 'Game over (turn limit)' : `&#127942; ${who} wins!`;
+  return '';
+}
+function journalLines() {
+  const out = [];
+  const turns = S.history.concat(S.log.length ? [{turn: S.turn, actor: S.cur, events: S.log}] : []);
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const t = turns[i];
+    for (let k = t.events.length - 1; k >= 0; k--) out.push(`<span class="jt">${t.turn ? 'T' + t.turn : 'Setup'}</span> ${evText(t.events[k])}`);
+  }
+  return out;
+}
+function render() { renderBoard(); renderPanel(); }
+
+/* ---------- human actions ---------- */
+function onBoardTap(cell, air) {
+  if (MODE === 'edit') { editCell(cell); return; }
+  if (!canAct()) { if (S && S.phase !== 'over' && !isHuman(S.cur)) toast('Wait for the AI to finish its turn.'); return; }
+  const L = legalActions(S), pos = cell != null ? cell : AIR0 + air;
+  if (G.deploy) {
+    const m = L.find(a => a.t === 'deploy' && a.k === G.deploy.k && (a.a || null) === (G.deploy.a || null) && a.to === pos);
+    if (m) { doHuman(m); return; }
+  }
+  if (G.sel != null) {
+    const m = L.find(a => a.t === 'move' && a.u === G.sel && a.to === pos);
+    if (m) { doHuman(m); return; }
+  }
+  const u = cell != null ? unitAt(S, cell) : airUnit(S, air);
+  if (u && u.o === S.cur) {
+    if (L.some(a => a.t === 'move' && a.u === u.id)) { G.sel = u.id; G.deploy = null; render(); return; }
+    toast(L.some(a => a.t === 'move') || slot(S) === 'move' ? `That ${UNIT_NAMES[u.k]} has no legal move.` : 'Moves are over for this turn: deploy from Reinforcements.');
+  } else if (u) toast(`${seatName(u.o)}'s ${unitLabel(u)}.`);
+  G.sel = null;
+  render();
+}
+function doHuman(a) {
+  G.undo.push(S);
+  const keep = G.deploy;
+  S = play(S, a);
+  G.sel = null; G.armed = 0;
+  G.deploy = keep && legalActions(S).some(b => b.t === 'deploy' && b.k === keep.k && (b.a || null) === (keep.a || null)) ? keep : null;
+  afterAction();
+}
+function afterAction() {
+  if (S.phase === 'over') { render(); gameOver(); return; }
+  autoSkip();
+  render();
+}
+function autoSkip() {
+  while (S.phase !== 'over' && isHuman(S.cur)) {
+    const L = legalActions(S);
+    if (L.length !== 1 || L[0].t !== 'skip') break;
+    S = play(S, L[0]);
+    toast(S.phase === 'setup' ? 'Nothing left to deploy: setup step skipped.' : 'No legal option for this action: it is skipped.');
+  }
+}
+function onTray(k) {
+  if (!canAct()) return;
+  const L = legalActions(S).filter(a => a.t === 'deploy');
+  if (k === 'air') {
+    const roles = AIRCRAFT.filter(r => L.some(a => a.k === r));
+    pickModal('Deploy an aircraft', 'Choose its side. It stays a Fighter or a Bomber for the whole game.', roles.map(r => ({id: r, label: UNIT_NAMES[r],
+      sub: r === 'fighter' ? 'Attacks Gruntz, Captains, Trucks and aircraft' : 'Attacks Tanks and Trucks; never aircraft', icon: iconSVG(r, null, S.seats[S.cur].color, 36)})),
+    r => { G.deploy = {k: r}; G.sel = null; render(); });
+    return;
+  }
+  if (k === 'tank' || k === 'truck') {
+    const atts = ATTACHMENTS.filter(x => L.some(a => a.k === k && a.a === x));
+    const sub = {cannon: 'Can attack all enemy ground units', transport: 'Gruntz can deploy next to it; cannot attack', antiair: 'Blocks enemy aircraft on every flight path through it; cannot attack'};
+    pickModal(`Deploy a ${UNIT_NAMES[k]}`, `${k === 'tank' ? 'Tank: moves up to 2 orthogonally; only Bombers and Cannons can hit it.' : 'Truck: moves up to 3 in a straight line, incl. diagonally.'} Choose its attachment:`,
+      atts.map(x => ({id: x, label: `${UNIT_NAMES[x]} (${S.res[S.cur][x]} left)`, sub: sub[x], icon: iconSVG(k, x, S.seats[S.cur].color, 36)})),
+      x => { G.deploy = {k, a: x}; G.sel = null; render(); });
+    return;
+  }
+  G.deploy = G.deploy && G.deploy.k === k ? null : {k};
+  G.sel = null;
+  render();
+}
+function onUndo() {
+  if (!canAct() || !G.undo.length) return;
+  S = G.undo.pop(); G.sel = null; G.deploy = null; G.armed = 0;
+  render();
+}
+function onDone() {
+  if (!canAct() || !legalActions(S).some(a => a.t === 'end')) return;
+  if (!G.armed) {
+    G.armed = 1; renderPanel();
+    clearTimeout(onDone.h); onDone.h = setTimeout(() => { G.armed = 0; renderPanel(); }, 3500);
+    return;
+  }
+  clearTimeout(onDone.h); G.armed = 0;
+  S = play(S, {t: 'end'});
+  G.undo = []; G.sel = null; G.deploy = null;
+  if (S.phase === 'over') { render(); gameOver(); return; }
+  nextTurn();
+}
+function nextTurn() {
+  saveGame();
+  if (!isHuman(S.cur)) { runAI(); return; }
+  const prevHuman = G.view;
+  G.view = S.cur;
+  autoSkip();
+  render();
+  if (humanCount() > 1 && prevHuman !== S.cur) showHandoff();
+}
+function runAI() {
+  G.busy = true; render();
+  setTimeout(() => {
+    let acts;
+    try { acts = aiPlan(S, S.seats[S.cur].level); } catch (e) { G.busy = false; toast('AI error: ' + esc(e.message)); console.error(e); return; }
+    let i = 0;
+    const stepAI = () => {
+      const a = acts[i++];
+      S = play(S, a);
+      render();
+      if (S.phase === 'over') { G.busy = false; render(); gameOver(); return; }
+      if (a.t === 'end' || i >= acts.length) { G.busy = false; nextTurn(); return; }
+      setTimeout(stepAI, a.t === 'skip' ? 0 : AI_DELAY);
+    };
+    stepAI();
+  }, 60);
+}
+
+/* ---------- game lifecycle ---------- */
+function startGame(setup) {
+  G.setup = setup;
+  const me = {color: setup.color, type: 'human'};
+  const other = setup.color === 'blue' ? 'green' : 'blue';
+  const opp = setup.opp === 'human' ? {color: other, type: 'human'} : {color: other, type: 'ai', level: setup.opp};
+  me.name = COLORS[me.color].name; opp.name = COLORS[other].name + (opp.type === 'ai' ? ' AI' : '');
+  const attacker = setup.atk === 'me' ? 0 : setup.atk === 'opp' ? 1 : 'random';
+  S = newGame({seats: [me, opp], attacker, starGoal: +setup.goal});
+  G.undo = []; G.sel = null; G.deploy = null; G.busy = false; G.armed = 0; G.recorded = false; G.view = 0;
+  LS.set('setup', setup);
+  showGame();
+  toast(`${seatName(S.attacker)} is the Attacker and deploys first.`);
+  nextTurn();
+}
+function showGame() { $('landing').hidden = true; $('app').hidden = false; closeModal(); fitBoard(); render(); }
+function saveGame() { if (MODE === 'play' && S) { if (S.phase === 'over') LS.del('save'); else LS.set('save', {S, setup: G.setup, v: APP_VERSION}); } }
+function resumeGame() {
+  const sv = LS.get('save', null);
+  if (!sv || !sv.S) return;
+  S = sv.S; G.setup = sv.setup; G.undo = []; G.sel = null; G.deploy = null; G.busy = false; G.recorded = false;
+  G.view = viewerSeat();
+  showGame();
+  nextTurn();
+}
+function gameOver() {
+  saveGame();
+  recordStats();
+  const r = result(S);
+  const title = r.winner < 0 ? 'No winner' : `${esc(seatName(r.winner))} wins!`;
+  const how = r.winner < 0 ? 'The turn limit was reached.' : r.reason === 'hq' ? `${esc(seatName(r.winner))}'s Captain captured the enemy HQ.` : `${esc(seatName(r.winner))} earned ${S.starGoal} Victory Stars.`;
+  const rows = r.rows.map(x => `<tr><td><span style="color:${COLORS[x.color].dark};font-weight:700">${esc(x.name)}</span></td><td>${x.role}</td><td>${x.stars} &#9733;</td><td>${x.unitsDestroyed}</td><td>${x.unitsLost}</td></tr>`).join('');
+  openModal(title, `<p>${how} Game length: ${S.turn} turn${S.turn === 1 ? '' : 's'}.</p><table><tr><th>Army</th><th>Role</th><th>Stars</th><th>Destroyed</th><th>Lost</th></tr>${rows}</table>`,
+    [{label: 'View board', act: 'close'}, {label: 'Main menu', act: 'menu'}, {label: 'Rematch', act: 'rematch', primary: true}], {kind: 'over'});
+}
+
+/* ---------- statistics ---------- */
+function recordStats() {
+  if (G.recorded || MODE !== 'play' || !S || S.sim) return;
+  G.recorded = true;
+  const r = result(S), me = 0, opp = 1, s = S.seats[opp];
+  const list = LS.get('stats', []);
+  list.push({date: new Date().toISOString().slice(0, 10), v: APP_VERSION, opp: s.type === 'ai' ? s.level : 'human', color: S.seats[me].color,
+    role: me === S.attacker ? 'Attacker' : 'Defender', result: r.winner < 0 ? 'draw' : r.winner === me ? 'win' : 'loss', reason: r.reason,
+    turns: S.turn, stars: [S.stars[me], S.stars[opp]], goal: S.starGoal, destroyed: S.killed[me], lost: S.lost[me]});
+  LS.set('stats', list.slice(-500));
+}
+function showStats() {
+  const list = LS.get('stats', []);
+  if (!list.length) { openModal('Statistics', '<p>No finished games yet. Your record is stored only in this browser.</p>', [{label: 'Close', act: 'close', primary: true}]); return; }
+  const wl = f => { const g = list.filter(f); const w = g.filter(x => x.result === 'win').length, l = g.filter(x => x.result === 'loss').length; return g.length ? `${w}&ndash;${l}${g.length - w - l ? ' &middot; ' + (g.length - w - l) + ' other' : ''}` : '&ndash;'; };
+  let cur = 0, best = 0, run = 0;
+  for (const x of list) { run = x.result === 'win' ? run + 1 : 0; best = Math.max(best, run); }
+  for (let i = list.length - 1; i >= 0 && list[i].result === 'win'; i--) cur++;
+  const wins = list.filter(x => x.result === 'win');
+  const opps = ['easy', 'normal', 'hard', 'human'];
+  const oppName = o => o === 'human' ? 'Pass and play (as seat 1)' : 'AI ' + LEVEL_NAMES[o];
+  const rows = opps.filter(o => list.some(x => x.opp === o)).map(o => `<tr><td>${oppName(o)}</td><td>${wl(x => x.opp === o)}</td><td>${wl(x => x.opp === o && x.role === 'Attacker')}</td><td>${wl(x => x.opp === o && x.role === 'Defender')}</td><td>${wl(x => x.opp === o && x.goal === 3)}</td><td>${wl(x => x.opp === o && x.goal === 5)}</td></tr>`).join('');
+  const recent = list.slice(-10).reverse().map(x => `<tr><td>${x.date}</td><td>${oppName(x.opp)}</td><td>${x.role}</td><td>${x.result === 'win' ? '<b>Win</b>' : x.result === 'loss' ? 'Loss' : 'Draw'}${x.reason ? ' (' + (x.reason === 'hq' ? 'HQ' : x.reason === 'stars' ? 'stars' : 'limit') + ')' : ''}</td><td>${x.stars[0]}&ndash;${x.stars[1]} / ${x.goal}</td><td>${x.turns}</td></tr>`).join('');
+  openModal('Statistics', `<div class="statgrid"><div><b>${list.length}</b>games</div><div><b>${wins.length}</b>wins</div><div><b>${Math.round(100 * wins.length / list.length)}%</b>win rate</div><div><b>${cur}</b>current streak</div><div><b>${best}</b>best streak</div></div>
+    <p style="font-size:13px">Wins by HQ capture: <b>${wins.filter(x => x.reason === 'hq').length}</b> &middot; by stars: <b>${wins.filter(x => x.reason === 'stars').length}</b></p>
+    <h3>Record (wins&ndash;losses)</h3><table><tr><th>Opponent</th><th>All</th><th>As Attacker</th><th>As Defender</th><th>Goal 3</th><th>Goal 5</th></tr>${rows}</table>
+    <h3>Recent games</h3><table><tr><th>Date</th><th>Opponent</th><th>Role</th><th>Result</th><th>Stars</th><th>Turns</th></tr>${recent}</table>
+    <p style="font-size:12px;color:#6d6457">Stored only in this browser. Test and self-play games are never recorded.</p>`,
+  [{label: 'Reset statistics', act: 'resetstats'}, {label: 'Close', act: 'close', primary: true}], {kind: 'stats'});
+}
+
+/* ---------- popups ---------- */
+let modalKind = null, modalCb = null, modalDocked = LS.get('dock', false);
+function openModal(title, body, buttons, opt = {}) {
+  modalKind = opt.kind || 'info'; modalCb = opt.cb || null;
+  const closable = opt.closable !== false;
+  $('modalBox').setAttribute('aria-label', title.replace(/<[^>]+>/g, ''));
+  $('modalBox').innerHTML = `<div class="mhead"><h2>${title}</h2>${closable ? `<button class="ghost small" data-act="dock" title="Dock to side so the board stays visible">${modalDocked ? 'Undock' : 'Dock to side'}</button><button class="ghost" data-act="close" aria-label="Close">&#10005;</button>` : ''}</div>
+    <div class="mbody">${body}</div><div class="mfoot">${(buttons || []).map(b => `<button data-act="${b.act}"${b.primary ? ' class="primary"' : ''}>${b.label}</button>`).join('')}</div>`;
+  $('modal').dataset.closable = closable ? '1' : '';
+  $('modal').classList.toggle('docked', modalDocked && closable);
+  $('modal').hidden = false;
+  const f = $('modalBox').querySelector('.mfoot button.primary') || $('modalBox').querySelector('button');
+  if (f) f.focus({preventScroll: true});
+}
+function closeModal() { $('modal').hidden = true; modalKind = null; modalCb = null; }
+function pickModal(title, text, options, cb) {
+  if (options.length === 1) { cb(options[0].id); return; }
+  openModal(title, `<p>${text}</p><div class="picks">${options.map(o => `<button data-pick="${o.id}">${o.icon || ''}<b>${esc(o.label)}</b><small>${esc(o.sub || '')}</small></button>`).join('')}</div>`,
+    [{label: 'Cancel', act: 'close'}], {kind: 'pick', cb});
+}
+function onModalClick(e) {
+  const pick = e.target.closest('[data-pick]');
+  if (pick && modalCb) { const cb = modalCb; closeModal(); cb(pick.dataset.pick); return; }
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'close') closeModal();
+  else if (act === 'dock') { modalDocked = !modalDocked; LS.set('dock', modalDocked); $('modal').classList.toggle('docked', modalDocked); b.textContent = modalDocked ? 'Undock' : 'Dock to side'; }
+  else if (act === 'menu') { closeModal(); showLanding(); }
+  else if (act === 'rematch') { closeModal(); startGame(G.setup || LS.get('setup', defaultSetup())); }
+  else if (act === 'new') { closeModal(); showLanding('setup'); }
+  else if (act === 'quick') showQuickRules();
+  else if (act === 'stats') showStats();
+  else if (act === 'whatsnew') showChangelog();
+  else if (act === 'resetstats') {
+    if (b.dataset.sure) { LS.del('stats'); closeModal(); toast('Statistics reset.'); }
+    else { b.dataset.sure = '1'; b.textContent = 'Tap again to delete all statistics'; b.classList.add('armed'); }
+  }
+}
+function showChangelog() {
+  const list = CHANGELOG.map((r, i) => `<section><h3>v${esc(r.v)}${i === 0 ? ' <span class="cl-new">Current</span>' : ''}<small>${esc(r.date)}</small></h3><ul>${r.items.map(t => `<li>${esc(t)}</li>`).join('')}</ul></section>`).join('');
+  openModal("What's new", `<div class="cl">${list}</div>`, [{label: 'Close', act: 'close', primary: true}], {kind: 'changelog'});
+}
+function showQuickRules(how) {
+  const t = (k, a) => ATTACKS[a || k].map(x => UNIT_NAMES[x]).join(', ') || '&ndash;';
+  openModal(how ? 'How to play' : 'Quick rules', `${how ? '<p><i>A guided tutorial is coming in a later version. Meanwhile, here is everything on one screen.</i></p>' : ''}
+  <p><b>Goal:</b> earn ${S ? S.starGoal : 3} Victory Stars, or move your Captain onto the enemy HQ (wins immediately).</p>
+  <h3>Setup</h3><p>The Attacker deploys any 3 units, then the Defender deploys 3. The Attacker takes the first turn.</p>
+  <h3>Your turn: exactly 3 actions</h3><ul><li><b>Move 1 then Deploy 2</b>, or <b>Move 2 then Deploy 1</b>. All Moves come before Deploys; the same unit may move twice.</li>
+  <li>If an action has no legal option it is skipped automatically.</li><li>End of turn: holding 2 Control Points with Gruntz and/or your Captain earns 1 star; all 3 earns 2. Only the player whose turn it is scores.</li></ul>
+  <h3>Moving and attacking</h3><ul><li>One ground unit per space. Moving into an enemy you can attack destroys it and ends that Move. You can't move into or through anything else, including your own units.</li>
+  <li><b>Captain:</b> every adjacent friendly Grunt (incl. diagonal) moves 1 space in the same direction with it, if it can; blocked Gruntz stay put. Dragged Gruntz may attack.</li>
+  <li><b>Tank</b> up to 2 orthogonally; <b>Truck</b> up to 3 in a straight line incl. diagonally. Both can stop early and stop when they attack.</li>
+  <li><b>Aircraft</b> sit in air spaces (clouds) and fly along 1 flight path per Move, destroying every enemy ground unit they can attack on the way, and an enemy aircraft they can attack in the destination cloud. An enemy Anti-Air on a path blocks it.</li></ul>
+  <h3>Deploying</h3><ul><li>Ground units: empty spaces in your Backline (shaded row, incl. your HQ). Gruntz may also deploy next to a friendly Transport. Never onto Control Points.</li>
+  <li>Aircraft: empty Backline air spaces (the 3 grey clouds on your edge). Choose Fighter or Bomber; 3 aircraft per game.</li>
+  <li>Vehicles: choose a Tank or Truck base plus an attachment. Destroyed vehicles and aircraft are gone for good; Gruntz and Captains return to Reinforcements.</li></ul>
+  <h3>Who attacks what</h3><table><tr><th>Unit</th><th>Moves</th><th>Can attack</th></tr>
+  <tr><td>Grunt</td><td>1, any direction</td><td>${t('grunt')}</td></tr><tr><td>Captain</td><td>1, drags adjacent Gruntz</td><td>&ndash;</td></tr>
+  <tr><td>Tank</td><td>up to 2 orthogonal</td><td>by attachment; only Bombers and Cannons can hit it</td></tr><tr><td>Truck</td><td>up to 3 straight, incl. diagonal</td><td>by attachment</td></tr>
+  <tr><td>Cannon</td><td>&ndash;</td><td>${t('cannon')}</td></tr><tr><td>Transport</td><td>&ndash;</td><td>&ndash; (Gruntz deploy next to it)</td></tr><tr><td>Anti-Air</td><td>&ndash;</td><td>&ndash; (blocks enemy flight paths)</td></tr>
+  <tr><td>Fighter</td><td>1 flight path</td><td>${t('fighter')}</td></tr><tr><td>Bomber</td><td>1 flight path</td><td>${t('bomber')}</td></tr></table>
+  <p style="font-size:12px;color:#6d6457">Based on rulebook v14 plus the designer-intent clarifications used in this version. The public rulebook link is the older v5 edition.</p>`,
+  [{label: 'Read the rulebook &#8599;', act: 'rulebook'}, {label: 'Close', act: 'close', primary: true}], {kind: 'rules'});
+  const rb = $('modalBox').querySelector('[data-act="rulebook"]');
+  if (rb) rb.onclick = () => window.open(LINKS.rulebook, '_blank', 'noopener');
+}
+function showMenu() {
+  openModal('Menu', '<div class="picks" style="grid-template-columns:1fr">' + [
+    ['close', 'Resume', 'Back to the battle'], ['new', 'New game', 'Choose sides, opponent and star goal'], ['quick', 'Quick rules', 'One-screen summary'],
+    ['stats', 'Statistics', 'Your record'], ['whatsnew', "What's new", 'Version history'], ['menu', 'Main menu', 'Your game is saved']
+  ].map(([a, l, s]) => `<button data-act="${a}"><b>${l}</b><small>${s}</small></button>`).join('') + `<a class="lbtn" href="${LINKS.rulebook}" target="_blank" rel="noopener noreferrer">Read the rulebook &#8599;</a></div>`, [], {kind: 'menu'});
+}
+function showHandoff() {
+  const h = $('handoff'), s = S.seats[S.cur];
+  h.innerHTML = `<h2 style="color:${COLORS[s.color].fill}">Pass to ${esc(s.name)}</h2><p>${S.phase === 'setup' ? 'Setup: deploy 3 units.' : `Turn ${S.turn}. Stars: ${S.seats.map((x, i) => esc(x.name) + ' ' + S.stars[i]).join(', ')}.`}</p><button class="primary" id="handoffGo">I'm ${esc(s.name)}: show the board</button>`;
+  h.hidden = false;
+  $('handoffGo').focus();
+  $('handoffGo').onclick = () => { h.hidden = true; };
+}
+
+/* ---------- landing ---------- */
+function defaultSetup() { return {color: 'blue', opp: 'normal', atk: 'me', goal: '3'}; }
+function showLanding(view) {
+  $('landing').hidden = false; $('app').hidden = MODE !== 'play' || !S;
+  const sv = LS.get('save', null);
+  $('lResume').hidden = !(S && S.phase !== 'over') && !(sv && sv.S);
+  $('lMenu').hidden = view === 'setup'; $('lSetup').hidden = view !== 'setup';
+  if (view === 'setup') {
+    const st = LS.get('setup', defaultSetup());
+    for (const k of ['color', 'opp', 'atk', 'goal']) { const el = $('lSetup').querySelector(`input[name="${k}"][value="${st[k]}"]`); if (el) el.checked = true; }
+  }
+}
+function initLanding() {
+  $('lRules').href = LINKS.rulebook; $('lVideo').href = LINKS.video; $('lPub').href = LINKS.publisher;
+  $('lVer').textContent = 'v' + APP_VERSION;
+  $('lVer').onclick = showChangelog;
+  $('lNew').onclick = () => showLanding('setup');
+  $('lBack').onclick = () => showLanding();
+  $('lHow').onclick = () => showQuickRules(true);
+  $('lQuick').onclick = () => showQuickRules();
+  $('lStats').onclick = showStats;
+  $('lResume').onclick = () => { if (S && S.phase !== 'over') { showGame(); if (!isHuman(S.cur) && !G.busy) runAI(); } else resumeGame(); };
+  $('lSetup').onsubmit = e => {
+    e.preventDefault();
+    const f = new FormData($('lSetup'));
+    startGame({color: f.get('color'), opp: f.get('opp'), atk: f.get('atk'), goal: f.get('goal')});
+  };
+  try {
+    const last = localStorage.getItem('gruntz.lastVersion');
+    if (last && last !== JSON.stringify(APP_VERSION)) setTimeout(() => toast(`Updated to v${esc(APP_VERSION)}. <u>What's new</u>`, 4000), 900);
+    LS.set('lastVersion', APP_VERSION);
+  } catch (e) {}
+  $('toast').onclick = () => showChangelog();
+  showLanding();
+}
+
+/* ---------- zoom and pan ---------- */
+const Z = {s: 1, x: 0, y: 0, ptrs: new Map(), pinch: null, pan: null, moved: false};
+function applyZoom() { $('board').style.transform = Z.s === 1 && !Z.x && !Z.y ? '' : `translate(${Z.x}px,${Z.y}px) scale(${Z.s})`; }
+function fitBoard() { Z.s = 1; Z.x = 0; Z.y = 0; applyZoom(); }
+function clampPan() {
+  const r = $('boardWrap').getBoundingClientRect();
+  Z.x = Math.min(0, Math.max(r.width * (1 - Z.s), Z.x)); Z.y = Math.min(0, Math.max(r.height * (1 - Z.s), Z.y));
+}
+function zoomAt(cx, cy, s) {
+  s = Math.max(1, Math.min(3.5, s));
+  Z.x = cx - (cx - Z.x) * (s / Z.s); Z.y = cy - (cy - Z.y) * (s / Z.s); Z.s = s;
+  clampPan(); applyZoom();
+}
+function initZoom() {
+  const w = $('boardWrap');
+  const local = e => { const r = w.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  w.addEventListener('pointerdown', e => {
+    Z.ptrs.set(e.pointerId, local(e));
+    if (Z.ptrs.size === 2) {
+      const [a, b] = [...Z.ptrs.values()];
+      Z.pinch = {d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: Z.s}; Z.pan = null;
+    } else if (Z.ptrs.size === 1) { Z.pan = {p: local(e), x: Z.x, y: Z.y}; Z.moved = false; }
+  });
+  w.addEventListener('pointermove', e => {
+    if (!Z.ptrs.has(e.pointerId)) return;
+    Z.ptrs.set(e.pointerId, local(e));
+    if (Z.pinch && Z.ptrs.size >= 2) {
+      const [a, b] = [...Z.ptrs.values()];
+      zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Z.pinch.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / Z.pinch.d);
+      Z.moved = true;
+    } else if (Z.pan && Z.s > 1) {
+      const p = local(e), dx = p[0] - Z.pan.p[0], dy = p[1] - Z.pan.p[1];
+      if (Math.abs(dx) + Math.abs(dy) > 8) Z.moved = true;
+      if (Z.moved) { Z.x = Z.pan.x + dx; Z.y = Z.pan.y + dy; clampPan(); applyZoom(); }
+    }
+  });
+  const up = e => { Z.ptrs.delete(e.pointerId); if (Z.ptrs.size < 2) Z.pinch = null; if (!Z.ptrs.size) Z.pan = null; };
+  w.addEventListener('pointerup', up); w.addEventListener('pointercancel', up);
+  w.addEventListener('wheel', e => { e.preventDefault(); const [x, y] = local(e); zoomAt(x, y, Z.s * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }, {passive: false});
+  $('board').addEventListener('click', e => {
+    if (Z.moved) { Z.moved = false; return; }
+    const t = e.target.closest('[data-c],[data-a]');
+    if (!t) return;
+    if (t.dataset.c != null) onBoardTap(+t.dataset.c, null); else onBoardTap(null, +t.dataset.a);
+  });
+  $('fitBtn').onclick = fitBoard;
+}
+
+/* ---------- ?debug and ?edit ---------- */
+function renderDebugPanel() {
+  let box = $('dbgBox');
+  if (!box) { box = document.createElement('details'); box.id = 'dbgBox'; box.open = true; $('panelMore').appendChild(box); }
+  box.innerHTML = `<summary>Debug: board data</summary><div class="dbg">${esc(boardTable())}</div>` + (aiPlan.last ? `<div class="dbg">Last AI turn: ${aiPlan.last.level}, ${aiPlan.last.ms} ms, ${aiPlan.last.nodes} positions, value ${Math.round(aiPlan.last.value)}</div>` : '');
+}
+function boardTable() {
+  const map = [];
+  for (let r = 1; r <= BOARD.rows; r++) {
+    const row = [];
+    for (let c = 1; c <= BOARD.cols; c++) { const x = BOARD.cells[cellAt(r, c)]; row.push(x.cp ? 'C' : x.hq ? x.hq.toLowerCase() : x.back || '.'); }
+    map.push(row.join(' '));
+  }
+  const air = BOARD.air.map(a => `${a.id} ${a.r} ${a.c} ${a.back || '-'}`);
+  const paths = BOARD.paths.map(p => `${p.id.padEnd(4)}${BOARD.air[p.a].id} ${BOARD.air[p.b].id} : ${p.cells.map(i => BOARD.cells[i].r + ',' + BOARD.cells[i].c).join(' ')}`);
+  return `MAP\n${map.join('\n')}\n\nAIR\n${air.join('\n')}\n\nPATHS\n${paths.join('\n')}`;
+}
+const EDIT_TYPES = ['.', 'N', 'S', 'n', 's', 'C'];
+function editCell(i) {
+  if (i == null) return;
+  const c = BOARD.cells[i], cur = c.cp ? 'C' : c.hq ? c.hq.toLowerCase() : c.back || '.';
+  const next = EDIT_TYPES[(EDIT_TYPES.indexOf(cur) + 1) % EDIT_TYPES.length];
+  const rows = boardTable().split('\n\n')[0].split('\n').slice(1).map(r => r.split(' '));
+  rows[c.r - 1][c.c - 1] = next;
+  $('edMap').value = rows.map(r => r.join(' ')).join('\n');
+  editApply();
+}
+function editApply() {
+  try {
+    const b = parseBoard($('edMap').value, $('edAir').value, $('edPath').value);
+    setBoard(b);
+    LS.set('mapEdit', {map: $('edMap').value, air: $('edAir').value, path: $('edPath').value});
+    $('edErr').textContent = `OK: ${b.cols}x${b.rows}, ${b.air.length} air spaces, ${b.paths.length} flight paths.`;
+    S = blankGame(); render();
+  } catch (e) { $('edErr').textContent = 'Error: ' + e.message; }
+}
+function initEdit() {
+  const saved = LS.get('mapEdit', null);
+  const t = saved || {map: MAP_TEXT.trim(), air: AIR_TEXT.trim(), path: PATH_TEXT.trim()};
+  $('panel').innerHTML = `<div class="edit"><h3 style="margin:0">Map editor</h3>
+    <p style="font-size:13px;margin:4px 0">Tap a cell to cycle: open &rarr; North Backline &rarr; South Backline &rarr; North HQ &rarr; South HQ &rarr; Control Point. Edit air spaces and flight paths as text, then Apply. Export and send me the text.</p>
+    <label>Ground</label><textarea id="edMap" style="min-height:110px"></textarea>
+    <label>Air spaces (id row col backline)</label><textarea id="edAir" style="min-height:120px"></textarea>
+    <label>Flight paths (id from to : row,col ...)</label><textarea id="edPath"></textarea>
+    <div class="row"><button id="edApply" class="primary">Apply</button><button id="edExport">Export</button><button id="edReset">Reset to built-in</button><a class="lbtn" href="?">Exit editor</a></div>
+    <div id="edErr" style="font-size:13px"></div><textarea id="edOut" hidden readonly></textarea></div>`;
+  $('edMap').value = t.map; $('edAir').value = t.air; $('edPath').value = t.path;
+  $('edApply').onclick = editApply;
+  $('edReset').onclick = () => { LS.del('mapEdit'); $('edMap').value = MAP_TEXT.trim(); $('edAir').value = AIR_TEXT.trim(); $('edPath').value = PATH_TEXT.trim(); editApply(); };
+  $('edExport').onclick = () => {
+    const out = $('edOut'); out.hidden = false;
+    out.value = `const MAP_TEXT = \`\n${$('edMap').value}\n\`;\nconst AIR_TEXT = \`\n${$('edAir').value}\n\`;\nconst PATH_TEXT = \`\n${$('edPath').value}\n\`;\n`;
+    out.select();
+    try { navigator.clipboard.writeText(out.value).then(() => toast('Copied to the clipboard.')); } catch (e) {}
+  };
+  $('landing').hidden = true; $('app').hidden = false;
+  editApply();
+}
+
+/* ---------- ?test and ?selfplay ---------- */
+function runTestPage() {
+  const res = runTests();
+  try {
+    let R = newGame({seed: 3, attacker: 0});
+    for (let i = 0; i < 4; i++) for (const a of aiPlan(R, 'easy')) R = play(R, a);
+    S = R; G.view = 0; $('app').hidden = false; render();
+    G.sel = Object.keys(S.U).map(Number).find(id => S.U[id].o === S.cur); renderBoard(); G.sel = null;
+    res.push({name: 'UI renders a mid-game position, the panel and a selection', ok: $('board').querySelectorAll('.unit').length > 0, err: ''});
+  } catch (e) { res.push({name: 'UI renders a mid-game position, the panel and a selection', ok: false, err: e.message}); }
+  const tapName = 'UI taps: deploy 3 Gruntz via tray and board, Done twice hands over to the other human';
+  const saved = localStorage.getItem('gruntz.save');
+  try {
+    MODE = 'play';
+    startGame({color: 'blue', opp: 'human', atk: 'me', goal: '3'});
+    const click = el => el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    for (let i = 0; i < 3; i++) {
+      if (!G.deploy) click($('trayBtns').querySelector('[data-dep="grunt"]'));
+      const to = legalActions(S).find(a => a.t === 'deploy' && a.k === 'grunt').to;
+      click($('board').querySelector(to >= AIR0 ? `[data-a="${to - AIR0}"]` : `[data-c="${to}"]`));
+    }
+    const placed = unitsOf(S, 0).length;
+    click($('doneBtn')); click($('doneBtn'));
+    res.push({name: tapName, ok: placed === 3 && S.cur === 1 && !$('handoff').hidden, err: `placed ${placed}, cur ${S.cur}`});
+    $('handoff').hidden = true; S = null; $('app').hidden = true;
+  } catch (e) { res.push({name: tapName, ok: false, err: e.message}); }
+  MODE = 'test';
+  if (saved == null) localStorage.removeItem('gruntz.save'); else localStorage.setItem('gruntz.save', saved);
+  const pass = res.filter(r => r.ok).length;
+  document.title = `TESTS ${pass}/${res.length}`;
+  const out = $('testOut'); out.hidden = false;
+  out.innerHTML = `<h2>Gruntz v${APP_VERSION} rule tests: ${pass} passed, ${res.length - pass} failed</h2><ol>` +
+    res.map(r => `<li class="${r.ok ? 'ok' : 'bad'}">${r.ok ? 'PASS' : 'FAIL'} ${esc(r.name)}${r.err ? ' &mdash; ' + esc(r.err) : ''}</li>`).join('') + '</ol>';
+}
+function runSelfplayPage() {
+  $('landing').hidden = true; $('app').hidden = false;
+  const levels = (Q.get('levels') || 'normal,normal').split(',');
+  const opts = {seed: Q.has('seed') ? +Q.get('seed') : 12345, levels, starGoal: +(Q.get('goal') || 3)};
+  document.title = 'SELFPLAY RUNNING';
+  selfplay(opts, R => { S = R; G.view = 0; render(); }, info => {
+    S = info.S; render();
+    document.title = info.ok ? `SELFPLAY DONE ${info.text} in ${info.steps} steps` : `SELFPLAY ERROR ${info.text.split('\n')[0]}`;
+    const out = $('testOut'); out.hidden = false;
+    out.style.cssText = 'inset:auto 0 0 0;max-height:30vh';
+    out.innerHTML = `<b>${esc(document.title)}</b><pre>${esc(info.ok ? '' : info.text)}</pre>`;
+  });
+}
+
+/* Dev aid for screenshots: ?demo=N plays N quick AI turns, then hands the human seat its turn (&sel=1 selects a unit, &dep=tank opens a deploy). */
+function startDemo(n) {
+  G.setup = {color: 'blue', opp: Q.get('opp') || 'normal', atk: 'me', goal: Q.get('goal') || '3'};
+  startGame(G.setup);
+  while (S.phase !== 'over' && (S.turn < n || S.phase === 'setup' || !isHuman(S.cur))) for (const a of aiPlan(S, 'easy')) { S = play(S, a); if (S.phase === 'over') break; }
+  G.busy = false; G.view = 0; closeModal(); $('toast').classList.remove('on');
+  if (Q.has('sel') && canAct()) { const m = legalActions(S).find(a => a.t === 'move'); if (m) G.sel = m.u; }
+  if (Q.has('dep') && canAct()) {
+    const m = legalActions(S).find(a => a.t === 'move' || a.t === 'skip');
+    if (m && slot(S) === 'move') S = play(S, m);
+  }
+  if (Q.has('dep') && canAct()) G.deploy = {k: Q.get('dep'), a: Q.get('att') || undefined};
+  render();
+}
+
+/* ---------- boot ---------- */
+function boot() {
+  $('undoBtn').onclick = onUndo;
+  $('doneBtn').onclick = onDone;
+  $('menuBtn').onclick = showMenu;
+  $('trayBtns').addEventListener('click', e => { const b = e.target.closest('[data-dep]'); if (b && !b.disabled) onTray(b.dataset.dep); });
+  $('modal').addEventListener('click', onModalClick);
+  $('modalBack').addEventListener('click', () => { if ($('modal').dataset.closable) closeModal(); });
+  $('panelMin').onclick = () => { const p = $('panel'), m = !p.classList.contains('min'); p.classList.toggle('min', m); $('panelMin').innerHTML = m ? '&#9652;' : '&#9662;'; $('panelMin').setAttribute('aria-expanded', String(!m)); LS.set('panelMin', m); };
+  if (LS.get('panelMin', false)) $('panelMin').click();
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if (!$('modal').hidden && $('modal').dataset.closable) closeModal(); else if (G.sel != null || G.deploy) { G.sel = null; G.deploy = null; render(); } }
+    if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && $('modal').hidden) { e.preventDefault(); onUndo(); }
+  });
+  window.addEventListener('resize', () => { clampPan(); applyZoom(); });
+  initZoom();
+  if (MODE === 'test') { $('landing').hidden = true; runTestPage(); return; }
+  if (MODE === 'selfplay') { runSelfplayPage(); return; }
+  if (MODE === 'edit') { initEdit(); return; }
+  initLanding();
+  if (Q.has('demo')) startDemo(+Q.get('demo') || 6);
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/localhost|127\.0\.0\.1/.test(location.hostname) && document.querySelector('link[rel="manifest"]'))
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+boot();
+
+</script>
+</body>
+</html>
