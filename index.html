@@ -146,11 +146,35 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px}
 #testOut .ok{color:#126b12}#testOut .bad{color:#b00;font-weight:700}
 
 /* ---------- board ---------- */
-.hit{fill:transparent;cursor:pointer}
+.hit{fill:transparent;cursor:default}
+.hit.own,.hit.tgt{cursor:pointer}
+@media (hover:hover){.hit.own:hover{fill:#ffffff38}.hit.tgt:hover{fill:#f2c23055}}
 .unit{pointer-events:none}
 .pulse{animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.pulse{animation:none}#toast{transition:none}}
+
+/* ---------- animation and polish ---------- */
+button{transition:transform .08s,background-color .15s}
+button:active:not(:disabled){transform:scale(.96)}
+#sndBtn{font-size:18px!important}
+#banner{position:absolute;left:0;right:0;top:38%;z-index:3;pointer-events:none;text-align:center;font:800 clamp(22px,5vw,38px)/1 "Stencil","Impact","Arial Black",sans-serif;letter-spacing:.1em;color:#fff;
+  background:linear-gradient(90deg,transparent,var(--bc,#3a352d) 18%,var(--bc,#3a352d) 82%,transparent);padding:14px 0;opacity:0;text-shadow:0 2px 0 #0006;text-transform:uppercase}
+#banner.on{animation:banner 1.5s ease-in-out}
+@keyframes banner{0%{opacity:0;transform:translateX(-30%) skewX(-12deg)}18%{opacity:.96;transform:none}75%{opacity:.96;transform:none}100%{opacity:0;transform:translateX(30%) skewX(12deg)}}
+.pcard{transition:background-color .3s,outline-color .3s}
+.pcard.gain .st{animation:gain 1.1s ease-out}
+@keyframes gain{0%{transform:scale(1)}25%{transform:scale(1.45);color:#f2a400;text-shadow:0 0 10px #f2c230}100%{transform:scale(1)}}
+.aicap{display:block;font-size:14px;animation:capIn .35s ease-out}
+@keyframes capIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+#lastTurn details{margin-top:6px;font-size:12.5px;background:#f6efdf;border-radius:8px;padding:4px 8px}
+#lastTurn summary{cursor:pointer;color:var(--muted);font-weight:600}
+#lastTurn ul{margin:4px 0 2px;padding-left:18px}
+.tbtn:not(:disabled):hover svg{transform:translateY(-2px)}
+.tbtn svg{transition:transform .15s}
+.confetti{position:fixed;inset:0;z-index:45;pointer-events:none;overflow:hidden}
+.confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;animation:fall 2.5s cubic-bezier(.3,.6,.6,1) forwards}
+@keyframes fall{to{transform:translate(var(--dx),105vh) rotate(var(--rot))}}
+@media (prefers-reduced-motion:reduce){.pulse,#banner.on,.pcard.gain .st,.aicap{animation:none}#toast,button{transition:none}.confetti{display:none}}
 
 </style>
 </head>
@@ -160,10 +184,12 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px}
     <button id="menuBtn" class="ghost" aria-label="Menu">&#9776;</button>
     <div id="topTitle">GRUNTZ</div>
     <div id="topStars" aria-live="polite"></div>
+    <button id="sndBtn" class="ghost" aria-label="Sound"></button>
   </header>
   <main id="main">
     <div id="boardWrap">
       <svg id="board" viewBox="-70 -70 940 740" role="img" aria-label="Gruntz battlefield"></svg>
+      <div id="banner" aria-hidden="true"></div>
       <div class="bctl"><button id="fitBtn" class="ghost small" title="Reset zoom">Fit</button></div>
     </div>
     <aside id="panel">
@@ -171,6 +197,7 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px}
       <div id="players"></div>
       <div id="turnBox">
         <div id="status" aria-live="polite"></div>
+        <div id="lastTurn"></div>
         <div id="actbar">
           <button id="undoBtn">Undo</button>
           <button id="doneBtn" class="primary">Done</button>
@@ -235,8 +262,15 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px}
 <script>
 'use strict';
 /* Gruntz: unofficial browser version for personal play. Version history shown on the landing page. */
-const APP_VERSION = '0.1';
+const APP_VERSION = '0.2';
 const CHANGELOG = [
+  {v: '0.2', date: '2026-10-20', items: [
+    'The AI now plays one action at a time: a caption says what it is doing and a red marker previews each move or deploy before it happens.',
+    'AI speed setting in the menu (Slow, Normal, Fast), and a "last turn" summary of the rival\'s actions on your turn.',
+    'Animations: units march, drive and fly to their new space, deploys drop in, destroyed units explode, and stars rise from held Control Points.',
+    'Sound effects for selecting, moving, deploying, attacks, stars, your turn and the end of the game, with a mute button in the top bar.',
+    'Turn banners, a victory celebration, unit shadows, and hover highlights on laptops.'
+  ]},
   {v: '0.1', date: '2026-10-20', items: [
     'First playable version: the full base game of GRUNTZ on the 7x5 map with 10 air spaces and 13 flight paths.',
     'All units: Gruntz, Captain (drags adjacent Gruntz), Tanks and Trucks with Cannon, Transport or Anti-Air, Fighters and Bombers.',
@@ -1245,6 +1279,162 @@ function selfplay(opts, onStep, onDone) {
 </script>
 <script>
 'use strict';
+/* Sound effects (synthesised with Web Audio, no audio files) and board animations. Uses globals from ui.js at call time. */
+
+const SFX = {
+  ctx: null,
+  get on() { return LS.get('sound', true); },
+  set on(v) { LS.set('sound', !!v); },
+  unlock() {
+    if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; this.ctx = new AC(); }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  tone(f, dur, {type = 'sine', vol = .15, to = null, at = 0, attack = .005} = {}) {
+    const c = this.ctx, t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(.0005, t + dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + .02);
+  },
+  noise(dur, {vol = .2, freq = 1200, to = null, q = .8, kind = 'lowpass', at = 0} = {}) {
+    const c = this.ctx, t = c.currentTime + at, n = Math.ceil(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = buf; f.type = kind; f.Q.value = q; f.frequency.setValueAtTime(freq, t);
+    if (to) f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0005, t + dur);
+    s.connect(f).connect(g).connect(c.destination); s.start(t); s.stop(t + dur + .02);
+  },
+  gestured: () => !navigator.userActivation || navigator.userActivation.hasBeenActive,
+  play(name, k) {
+    if (!this.on || MODE !== 'play' || !this.gestured()) return;
+    this.unlock();
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const T = this.tone.bind(this), N = this.noise.bind(this);
+    switch (name) {
+      case 'tap': T(700, .05, {type: 'triangle', vol: .06}); break;
+      case 'select': T(520, .08, {type: 'triangle', vol: .09, to: 820}); break;
+      case 'deny': T(150, .14, {type: 'square', vol: .05}); break;
+      case 'move':
+        if (k === 'fighter' || k === 'bomber') { N(.6, {vol: .22, freq: 300, to: 2400, kind: 'bandpass', q: 1.2}); T(160, .5, {type: 'sawtooth', vol: .025, to: 260}); }
+        else if (k === 'tank' || k === 'truck') { T(55, .42, {type: 'sawtooth', vol: .07, to: 85}); N(.4, {vol: .08, freq: 240}); }
+        else { N(.06, {vol: .16, freq: 1700, kind: 'bandpass', q: 2}); N(.06, {vol: .16, freq: 1500, kind: 'bandpass', q: 2, at: .14}); }
+        break;
+      case 'deploy': T(190, .16, {vol: .2, to: 80}); N(.08, {vol: .1, freq: 900, at: .02}); break;
+      case 'kill': N(.7, {vol: .45, freq: 1100, to: 120}); T(110, .45, {type: 'triangle', vol: .22, to: 35}); break;
+      case 'star': [784, 988, 1175, 1568].forEach((f, i) => T(f, .32, {type: 'triangle', vol: .11, at: i * .09})); break;
+      case 'turn': T(660, .25, {vol: .08, at: 0}); T(990, .35, {vol: .08, at: .12}); break;
+      case 'win': [523, 659, 784, 1047, 784, 1047].forEach((f, i) => T(f, i === 5 ? .7 : .22, {type: 'square', vol: .06, at: [0, .14, .28, .42, .62, .76][i]})); break;
+      case 'lose': [392, 330, 262, 196].forEach((f, i) => T(f, i === 3 ? .7 : .3, {type: 'triangle', vol: .12, at: i * .26})); break;
+    }
+  }
+};
+
+const FX = {
+  reduced: () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches,
+  live: () => MODE === 'play' && !FX.reduced(),
+  layer() {
+    let g = $('board').querySelector('#fxLayer');
+    if (!g) { g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.id = 'fxLayer'; g.setAttribute('pointer-events', 'none'); $('board').appendChild(g); }
+    return g;
+  },
+  add(html, x, y) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${x},${y})`); g.innerHTML = html;
+    this.layer().appendChild(g);
+    return g;
+  },
+  unitEl(p) { return $('board').querySelector(`.unit[data-p="${p}"]`); },
+  /* Animate the events one action produced, on the freshly rendered board. speed scales durations (1 = AI pace). Returns ms until done. */
+  play(evs, speed = 1) {
+    let total = 0;
+    const live = this.live(), mv = evs.find(e => e.e === 'move' && !e.drag), D = Math.round(560 * speed);
+    for (const e of evs) {
+      if (e.e === 'move') {
+        const el = this.unitEl(e.to); SFX.play('move', e.k);
+        if (!el || !live) continue;
+        const [x1, y1] = posXY(e.from), [x2, y2] = posXY(e.to), air = e.k === 'fighter' || e.k === 'bomber';
+        const frames = air
+          ? [{transform: `translate(${x1}px,${y1}px) scale(1)`}, {transform: `translate(${(x1 + x2) / 2}px,${(y1 + y2) / 2}px) scale(1.25)`, offset: .5}, {transform: `translate(${x2}px,${y2}px) scale(1)`}]
+          : e.k === 'grunt' || e.k === 'captain'
+            ? [{transform: `translate(${x1}px,${y1}px)`}, {transform: `translate(${(x1 + x2) / 2}px,${(y1 + y2) / 2 - 22}px) scale(1.08)`, offset: .5}, {transform: `translate(${x2}px,${y2}px)`}]
+            : [{transform: `translate(${x1}px,${y1}px)`}, {transform: `translate(${x2}px,${y2}px)`}];
+        el.animate(frames, {duration: air ? D * 1.3 : D, easing: air ? 'ease-in-out' : 'cubic-bezier(.45,0,.3,1)', fill: 'backwards'});
+        total = Math.max(total, air ? D * 1.3 : D);
+      } else if (e.e === 'deploy') {
+        SFX.play('deploy');
+        const el = this.unitEl(e.to);
+        if (!el || !live) continue;
+        const [x, y] = posXY(e.to);
+        el.animate([{transform: `translate(${x}px,${y - 70}px) scale(1.35)`, opacity: 0}, {transform: `translate(${x}px,${y}px) scale(1)`, opacity: 1, offset: .7}, {transform: `translate(${x}px,${y + 4}px) scale(1.06,.92)`, offset: .85}, {transform: `translate(${x}px,${y}px) scale(1)`}],
+          {duration: D * .8, easing: 'ease-out', fill: 'backwards'});
+        const ring = this.add('<circle r="20" fill="none" stroke="#6d6457" stroke-width="4" opacity="0"/>', x, y);
+        ring.firstChild.animate([{transform: 'scale(1)', opacity: 0}, {transform: 'scale(1)', opacity: .7, offset: .55}, {transform: 'scale(2.6)', opacity: 0}], {duration: D * 1.1, easing: 'ease-out'}).onfinish = () => ring.remove();
+        total = Math.max(total, D * 1.1);
+      } else if (e.e === 'kill') {
+        let delay = 0;
+        if (mv && live) {
+          const [ax, ay] = posXY(mv.from), [bx, by] = posXY(mv.to), [kx, ky] = posXY(e.at), L2 = (bx - ax) ** 2 + (by - ay) ** 2;
+          const t = L2 ? Math.max(0, Math.min(1, ((kx - ax) * (bx - ax) + (ky - ay) * (by - ay)) / L2)) : 1;
+          delay = t * D * (mv.k === 'fighter' || mv.k === 'bomber' ? 1.3 : .85);
+        }
+        setTimeout(() => { SFX.play('kill'); if (navigator.vibrate && SFX.on && MODE === 'play' && SFX.gestured()) navigator.vibrate(35); }, delay);
+        if (!live) continue;
+        const [x, y] = posXY(e.at), col = COLORS[S.seats[e.o].color];
+        const ghost = this.add(`<g>${glyph(e.k, e.a, col)}</g>`, x, y);
+        ghost.firstChild.animate([{opacity: 1, transform: 'scale(1)'}, {opacity: 1, transform: 'scale(1)', offset: Math.min(.95, delay / (delay + 500))}, {opacity: 0, transform: 'scale(.3) rotate(25deg)'}], {duration: delay + 500, fill: 'forwards'}).onfinish = () => ghost.remove();
+        const spikes = Array.from({length: 10}, (_, i) => { const a = i * Math.PI / 5; return `M${Math.cos(a) * 14},${Math.sin(a) * 14}L${Math.cos(a) * 46},${Math.sin(a) * 46}`; }).join('');
+        const boom = this.add(`<g opacity="0"><circle r="36" fill="#f6b42a"/><circle r="22" fill="#fff1b0"/><path d="${spikes}" stroke="#e0392f" stroke-width="7" stroke-linecap="round"/></g>`, x, y);
+        boom.firstChild.animate([{opacity: 0, transform: 'scale(.2)'}, {opacity: 1, transform: 'scale(1.15)', offset: .35}, {opacity: 0, transform: 'scale(1.5)'}], {duration: 620, delay, easing: 'ease-out'}).onfinish = () => boom.remove();
+        total = Math.max(total, delay + 620);
+      } else if (e.e === 'score') {
+        setTimeout(() => SFX.play('star'), 120);
+        this.starBurst(e);
+        total = Math.max(total, 1300);
+      }
+    }
+    return total;
+  },
+  starBurst(e) {
+    if (!this.live()) return;
+    for (const c of BOARD.cps) {
+      const u = unitAt(S, c);
+      if (!u || u.o !== e.o) continue;
+      const [x, y] = cellXY(c), s = this.add('<path d="M0,-26 l8,17 18,2 -13,12 4,18 -17,-9 -17,9 4,-18 -13,-12 18,-2z" fill="#f2c230" stroke="#8a5f00" stroke-width="3"/>', x, y);
+      s.firstChild.animate([{transform: 'translateY(0) scale(.3)', opacity: 0}, {transform: 'translateY(-30px) scale(1.3)', opacity: 1, offset: .35}, {transform: 'translateY(-90px) scale(.8)', opacity: 0}], {duration: 1300, easing: 'ease-out'}).onfinish = () => s.remove();
+    }
+    const card = $('players').children[e.o];
+    if (card) { card.classList.remove('gain'); void card.offsetWidth; card.classList.add('gain'); }
+  },
+  confetti() {
+    if (!this.live()) return;
+    const box = document.createElement('div'); box.className = 'confetti';
+    const cols = ['#f2c230', '#e0392f', '#4f8fe0', '#8fd14f', '#fff'];
+    for (let i = 0; i < 70; i++) {
+      const p = document.createElement('i');
+      p.style.cssText = `left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-delay:${Math.random() * .6}s;animation-duration:${1.8 + Math.random() * 1.4}s;--dx:${(Math.random() - .5) * 160}px;--rot:${Math.random() * 900 - 450}deg`;
+      box.appendChild(p);
+    }
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 3800);
+  },
+  banner(text, color) {
+    const b = $('banner');
+    if (!b || MODE !== 'play') return;
+    b.innerHTML = text; b.style.setProperty('--bc', color || '#3a352d');
+    b.classList.remove('on'); void b.offsetWidth; b.classList.add('on');
+  }
+};
+
+/* Events produced by the action that turned prev into next (the engine moves the log to history at the end of a turn). */
+function newEvents(prev, next) {
+  if (next.history.length > prev.history.length) return next.history[prev.history.length].events.slice(prev.log.length).concat(next.log);
+  return next.log.slice(prev.log.length);
+}
+
+</script>
+<script>
+'use strict';
 /* UI: SVG board, panels, landing, popups, statistics, ?test / ?selfplay / ?debug / ?edit. */
 
 const $ = id => document.getElementById(id);
@@ -1259,10 +1449,11 @@ const LS = {
 };
 const COLORS = {blue: {fill: '#4f8fe0', dark: '#1b3b6b', light: '#cfe1fa', name: 'Blue'}, green: {fill: '#8fd14f', dark: '#355f14', light: '#dcf3c4', name: 'Green'}};
 const LEVEL_NAMES = {easy: 'Easy', normal: 'Normal', hard: 'Hard'};
-const AI_DELAY = 480;
+const AI_SPEEDS = {slow: {label: 'Slow', k: 1.7}, normal: {label: 'Normal', k: 1}, fast: {label: 'Fast', k: .45}};
+const aiPace = () => (AI_SPEEDS[LS.get('aiSpeed', 'normal')] || AI_SPEEDS.normal).k;
 
 let S = null;
-const G = {undo: [], sel: null, deploy: null, busy: false, armed: 0, recorded: false, setup: null, view: 0};
+const G = {undo: [], sel: null, deploy: null, busy: false, armed: 0, recorded: false, setup: null, view: 0, aiPreview: null, aiCaption: ''};
 
 /* ---------- small helpers ---------- */
 function toast(msg, ms = 2600) {
@@ -1407,10 +1598,28 @@ function renderBoard() {
       o.push(`<rect x="${tx - 40}" y="${ty - 40}" width="80" height="80" rx="${m.to >= AIR0 ? 40 : 10}" fill="#f2c23044" stroke="#f2c230" stroke-width="5" stroke-dasharray="10 6" class="pulse"/>`);
     }
   }
+  // what the AI is about to do
+  const pv = G.aiPreview;
+  if (pv && pv.t === 'move') {
+    const u = S.U[pv.u];
+    if (u) {
+      const [x, y] = posXY(u.p), [tx, ty] = posXY(pv.to), tgt = pv.to >= AIR0 ? airUnit(S, pv.to - AIR0) : unitAt(S, pv.to);
+      if (pv.p != null) { const p = BOARD.paths[pv.p], [ax, ay] = airXY(p.a), [bx, by] = airXY(p.b); o.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#e0392f" stroke-width="7" opacity=".45" stroke-linecap="round"/>`); }
+      else o.push(`<line x1="${x}" y1="${y}" x2="${tx}" y2="${ty}" stroke="#e0392f" stroke-width="6" stroke-dasharray="4 10" stroke-linecap="round" opacity=".8"/>`);
+      o.push(`<circle cx="${x}" cy="${y}" r="44" fill="none" stroke="#e0392f" stroke-width="6" class="pulse"/>`);
+      o.push(tgt ? `<g transform="translate(${tx},${ty})"><circle r="42" fill="none" stroke="#e0392f" stroke-width="6"/><path d="M-30,0h60M0,-30v60" stroke="#e0392f" stroke-width="4"/></g>`
+        : `<circle cx="${tx}" cy="${ty}" r="18" fill="#e0392f" opacity=".8" class="pulse"/>`);
+    }
+  } else if (pv && pv.t === 'deploy') {
+    const [tx, ty] = posXY(pv.to);
+    o.push(`<rect x="${tx - 40}" y="${ty - 40}" width="80" height="80" rx="${pv.to >= AIR0 ? 40 : 10}" fill="#e0392f22" stroke="#e0392f" stroke-width="5" stroke-dasharray="10 6" class="pulse"/>`);
+    o.push(`<g transform="translate(${tx},${ty})" opacity=".45">${glyph(pv.k, pv.a, COLORS[S.seats[S.cur].color])}</g>`);
+  }
   // units
   for (const id in S.U) {
     const u = S.U[id], [x, y] = posXY(u.p), col = COLORS[S.seats[u.o].color];
-    o.push(`<g class="unit" transform="translate(${x},${y})">${glyph(u.k, u.a, col)}</g>`);
+    const shadow = u.p >= AIR0 ? '<ellipse cx="6" cy="40" rx="24" ry="6" fill="#0003"/>' : `<ellipse cx="3" cy="${u.k === 'tank' ? 34 : 29}" rx="${u.k === 'tank' || u.k === 'truck' ? 34 : 22}" ry="6" fill="#0002"/>`;
+    o.push(`<g class="unit" data-p="${u.p}" transform="translate(${x},${y})">${shadow}${glyph(u.k, u.a, col)}</g>`);
   }
   // debug overlay
   if (DEBUG) {
@@ -1423,8 +1632,14 @@ function renderBoard() {
     for (const a of BOARD.air) { const [x, y] = airXY(a.j); o.push(`<text x="${x}" y="${y + 6}" font-size="18" font-weight="800" text-anchor="middle" fill="#000" stroke="#fff" stroke-width="3" paint-order="stroke">${a.id}</text>`); }
   }
   // hit targets
-  for (const c of BOARD.cells) { const [x, y] = cellXY(c.i); o.push(`<rect class="hit" data-c="${c.i}" x="${x - 48}" y="${y - 48}" width="96" height="96"/>`); }
-  for (const a of BOARD.air) { const [x, y] = airXY(a.j); o.push(`<circle class="hit" data-a="${a.j}" cx="${x}" cy="${y}" r="46"/>`); }
+  const tgt = new Set(), own = new Set();
+  for (const a of L) {
+    if (a.t === 'move') { own.add(S.U[a.u].p); if (G.sel === a.u) tgt.add(a.to); }
+    else if (a.t === 'deploy' && G.deploy && a.k === G.deploy.k && (a.a || null) === (G.deploy.a || null)) tgt.add(a.to);
+  }
+  const hc = p => 'hit' + (tgt.has(p) ? ' tgt' : own.has(p) ? ' own' : '');
+  for (const c of BOARD.cells) { const [x, y] = cellXY(c.i); o.push(`<rect class="${hc(c.i)}" data-c="${c.i}" x="${x - 48}" y="${y - 48}" width="96" height="96" rx="8"/>`); }
+  for (const a of BOARD.air) { const [x, y] = airXY(a.j); o.push(`<circle class="${hc(AIR0 + a.j)}" data-a="${a.j}" cx="${x}" cy="${y}" r="46"/>`); }
   svg.innerHTML = o.join('');
 }
 
@@ -1436,7 +1651,7 @@ function statusHTML() {
     return r.winner < 0 ? '<b>Game over: no winner.</b>' : `<b>${esc(seatName(r.winner))} wins</b> by ${r.reason === 'hq' ? 'capturing the enemy HQ' : 'earning ' + S.starGoal + ' Victory Stars'}.`;
   }
   const nm = esc(seatName(S.cur));
-  if (!isHuman(S.cur)) return `<b>${nm}</b> (AI ${LEVEL_NAMES[S.seats[S.cur].level]}) is planning&hellip;`;
+  if (!isHuman(S.cur)) return G.aiCaption ? `<span class="aicap">${G.aiCaption}</span>` : `<b>${nm}</b> (AI ${LEVEL_NAMES[S.seats[S.cur].level]}) is planning&hellip;`;
   const sl = slot(S), you = humanCount() > 1 ? nm : 'Your';
   if (S.phase === 'setup') return sl === 'end' ? `<b>${you} setup is done.</b> Tap Done.` : `<b>${you} setup:</b> deploy ${S.setupLeft} more unit${S.setupLeft > 1 ? 's' : ''} in your Backline (shaded row) or Backline air spaces (grey clouds).`;
   const n = S.act + 1;
@@ -1455,6 +1670,13 @@ function renderPanel() {
   }).join('');
   $('topStars').innerHTML = S.seats.map((s, i) => `<span class="ts" style="color:${COLORS[s.color].fill}">${esc(s.name)} ${S.stars[i]}/${S.starGoal}&#9733;</span>`).join('');
   $('status').innerHTML = statusHTML();
+  let last = '';
+  if (S.phase !== 'over' && isHuman(S.cur) && !G.busy) {
+    const h = [...S.history].reverse().find(t => t.actor !== S.cur);
+    const lines = h ? h.events.filter(e => e.e !== 'skip').map(evText).filter(Boolean) : [];
+    if (lines.length) last = `<details${S.log.length ? '' : ' open'}><summary>${esc(seatName(h.actor))}'s last ${h.turn ? 'turn' : 'setup'}</summary><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul></details>`;
+  }
+  $('lastTurn').innerHTML = last;
   const L = canAct() ? legalActions(S) : [];
   $('undoBtn').disabled = !canAct() || !G.undo.length;
   const done = $('doneBtn');
@@ -1515,7 +1737,8 @@ function onBoardTap(cell, air) {
   }
   const u = cell != null ? unitAt(S, cell) : airUnit(S, air);
   if (u && u.o === S.cur) {
-    if (L.some(a => a.t === 'move' && a.u === u.id)) { G.sel = u.id; G.deploy = null; render(); return; }
+    if (L.some(a => a.t === 'move' && a.u === u.id)) { G.sel = G.sel === u.id ? null : u.id; G.deploy = null; SFX.play(G.sel != null ? 'select' : 'tap'); render(); return; }
+    SFX.play('deny');
     toast(L.some(a => a.t === 'move') || slot(S) === 'move' ? `That ${UNIT_NAMES[u.k]} has no legal move.` : 'Moves are over for this turn: deploy from Reinforcements.');
   } else if (u) toast(`${seatName(u.o)}'s ${unitLabel(u)}.`);
   G.sel = null;
@@ -1523,24 +1746,27 @@ function onBoardTap(cell, air) {
 }
 function doHuman(a) {
   G.undo.push(S);
-  const keep = G.deploy;
+  const keep = G.deploy, prev = S;
   S = play(S, a);
   G.sel = null; G.armed = 0;
   G.deploy = keep && legalActions(S).some(b => b.t === 'deploy' && b.k === keep.k && (b.a || null) === (keep.a || null)) ? keep : null;
-  afterAction();
+  afterAction(newEvents(prev, S));
 }
-function afterAction() {
-  if (S.phase === 'over') { render(); gameOver(); return; }
-  autoSkip();
+function afterAction(evs) {
   render();
+  const ms = FX.play(evs || [], .6);
+  if (S.phase === 'over') { gameOver(ms); return; }
+  if (autoSkip()) { renderPanel(); setTimeout(() => { if (canAct()) renderBoard(); }, ms); }
 }
 function autoSkip() {
+  let n = 0;
   while (S.phase !== 'over' && isHuman(S.cur)) {
     const L = legalActions(S);
     if (L.length !== 1 || L[0].t !== 'skip') break;
-    S = play(S, L[0]);
+    S = play(S, L[0]); n++;
     toast(S.phase === 'setup' ? 'Nothing left to deploy: setup step skipped.' : 'No legal option for this action: it is skipped.');
   }
+  return n > 0;
 }
 function onTray(k) {
   if (!canAct()) return;
@@ -1562,6 +1788,7 @@ function onTray(k) {
   }
   G.deploy = G.deploy && G.deploy.k === k ? null : {k};
   G.sel = null;
+  SFX.play(G.deploy ? 'select' : 'tap');
   render();
 }
 function onUndo() {
@@ -1577,36 +1804,77 @@ function onDone() {
     return;
   }
   clearTimeout(onDone.h); G.armed = 0;
+  const prev = S;
   S = play(S, {t: 'end'});
   G.undo = []; G.sel = null; G.deploy = null;
-  if (S.phase === 'over') { render(); gameOver(); return; }
-  nextTurn();
+  render();
+  const ms = FX.play(newEvents(prev, S), 1);
+  if (S.phase === 'over') { gameOver(ms); return; }
+  nextTurn(ms);
 }
-function nextTurn() {
+function nextTurn(wait = 0) {
   saveGame();
-  if (!isHuman(S.cur)) { runAI(); return; }
+  if (!isHuman(S.cur)) { runAI(wait); return; }
   const prevHuman = G.view;
   G.view = S.cur;
   autoSkip();
   render();
   if (humanCount() > 1 && prevHuman !== S.cur) showHandoff();
+  else if (MODE === 'play' && humanCount() === 1 && G.aiDone) {
+    G.aiDone = false;
+    FX.banner(S.phase === 'setup' ? 'Your setup' : `Your turn &middot; ${S.turn}`, COLORS[S.seats[S.cur].color].dark);
+    SFX.play('turn');
+  }
 }
-function runAI() {
-  G.busy = true; render();
+
+/* The AI plays its turn one action at a time: a caption and a red preview of the action, then the animated action, then a pause. */
+function aiCaption(a) {
+  const who = `<b style="color:${COLORS[S.seats[S.cur].color].dark}">${esc(seatName(S.cur))}</b>`, n = S.phase === 'setup' ? 3 - S.setupLeft + 1 : S.act + 1;
+  const step = S.phase === 'setup' ? `Setup ${n} of 3` : a.t === 'end' ? 'End of turn' : `Action ${n} of 3`;
+  if (a.t === 'move') {
+    const u = S.U[a.u], tgt = a.to >= AIR0 ? airUnit(S, a.to - AIR0) : unitAt(S, a.to);
+    const path = a.p != null ? BOARD.paths[a.p].cells.map(i => unitAt(S, i)).filter(v => v && isEnemy(S, v.o, u.o) && canAttack(u, v)) : [];
+    const hits = [tgt, ...path].filter(Boolean).map(v => `${esc(seatName(v.o))}'s ${UNIT_NAMES[v.k]}`);
+    return `${step}: ${who} moves ${UNIT_NAMES[u.k]}${u.a ? ` (${UNIT_NAMES[u.a]})` : ''} ${posName(u.p)} &rarr; ${posName(a.to)}${hits.length ? `, attacking ${hits.join(' and ')}` : ''}${u.k === 'captain' ? ' (adjacent Gruntz follow)' : ''}`;
+  }
+  if (a.t === 'deploy') return `${step}: ${who} deploys a ${UNIT_NAMES[a.k]}${a.a ? ` with ${UNIT_NAMES[a.a]}` : ''} at ${posName(a.to)}`;
+  if (a.t === 'skip') return `${step}: ${who} has no legal option and skips`;
+  const gain = S.phase === 'turn' ? starsFor(holders(S, S.cur).length) : 0;
+  return `${step}: ${who} ${gain ? `holds ${holders(S, S.cur).length} Control Points and earns ${gain} Victory Star${gain > 1 ? 's' : ''}` : 'ends the turn'}`;
+}
+function runAI(wait = 0) {
+  G.busy = true; G.aiCaption = ''; G.aiPreview = null;
+  const k = aiPace(), live = MODE === 'play';
+  const T = ms => live ? Math.round(ms * k) : 0;
   setTimeout(() => {
-    let acts;
-    try { acts = aiPlan(S, S.seats[S.cur].level); } catch (e) { G.busy = false; toast('AI error: ' + esc(e.message)); console.error(e); return; }
-    let i = 0;
-    const stepAI = () => {
-      const a = acts[i++];
-      S = play(S, a);
-      render();
-      if (S.phase === 'over') { G.busy = false; render(); gameOver(); return; }
-      if (a.t === 'end' || i >= acts.length) { G.busy = false; nextTurn(); return; }
-      setTimeout(stepAI, a.t === 'skip' ? 0 : AI_DELAY);
-    };
-    stepAI();
-  }, 60);
+    render();
+    if (live) FX.banner(`${esc(seatName(S.cur))}'s ${S.phase === 'setup' ? 'setup' : 'turn'}`, COLORS[S.seats[S.cur].color].dark);
+    setTimeout(() => {
+      let acts;
+      try { acts = aiPlan(S, S.seats[S.cur].level); } catch (e) { G.busy = false; toast('AI error: ' + esc(e.message)); console.error(e); return; }
+      let i = 0;
+      const stepAI = () => {
+        const a = acts[i++];
+        G.aiCaption = aiCaption(a);
+        G.aiPreview = a.t === 'move' || a.t === 'deploy' ? a : null;
+        render();
+        setTimeout(() => {
+          const prev = S;
+          S = play(S, a);
+          G.aiPreview = null;
+          render();
+          const ms = FX.play(newEvents(prev, S), k);
+          if (S.phase === 'over') { G.busy = false; gameOver(ms); return; }
+          if (a.t === 'end' || i >= acts.length) {
+            setTimeout(() => { G.busy = false; G.aiCaption = ''; G.aiDone = true; nextTurn(); }, live ? Math.max(ms, T(500)) : 0);
+            return;
+          }
+          setTimeout(stepAI, live ? ms + T(a.t === 'skip' ? 300 : 550) : 0);
+        }, T(a.t === 'end' ? 500 : a.t === 'skip' ? 600 : 900));
+      };
+      stepAI();
+    }, T(700));
+  }, live ? wait : 0);
 }
 
 /* ---------- game lifecycle ---------- */
@@ -1634,10 +1902,23 @@ function resumeGame() {
   showGame();
   nextTurn();
 }
-function gameOver() {
+function gameOver(wait = 0) {
   saveGame();
   recordStats();
+  G.busy = false; G.aiCaption = ''; G.aiPreview = null;
+  render();
   const r = result(S);
+  if (MODE === 'play') {
+    const mine = humanCount() === 1 ? S.seats.findIndex(s => s.type === 'human') : r.winner;
+    setTimeout(() => {
+      SFX.play(r.winner >= 0 && r.winner === mine ? 'win' : 'lose');
+      FX.banner(r.winner < 0 ? 'No winner' : humanCount() === 1 ? (r.winner === mine ? 'Victory!' : 'Defeat') : `${esc(seatName(r.winner))} wins!`, r.winner >= 0 ? COLORS[S.seats[r.winner].color].dark : '#3a352d');
+      if (r.winner >= 0 && r.winner === mine) FX.confetti();
+    }, wait);
+    setTimeout(() => { if (S && S.phase === 'over') gameOverModal(r); }, wait + 1700);
+  } else gameOverModal(r);
+}
+function gameOverModal(r) {
   const title = r.winner < 0 ? 'No winner' : `${esc(seatName(r.winner))} wins!`;
   const how = r.winner < 0 ? 'The turn limit was reached.' : r.reason === 'hq' ? `${esc(seatName(r.winner))}'s Captain captured the enemy HQ.` : `${esc(seatName(r.winner))} earned ${S.starGoal} Victory Stars.`;
   const rows = r.rows.map(x => `<tr><td><span style="color:${COLORS[x.color].dark};font-weight:700">${esc(x.name)}</span></td><td>${x.role}</td><td>${x.stars} &#9733;</td><td>${x.unitsDestroyed}</td><td>${x.unitsLost}</td></tr>`).join('');
@@ -1710,6 +1991,11 @@ function onModalClick(e) {
   else if (act === 'quick') showQuickRules();
   else if (act === 'stats') showStats();
   else if (act === 'whatsnew') showChangelog();
+  else if (act === 'sound') { toggleSound(); b.querySelector('b').textContent = `Sound: ${SFX.on ? 'On' : 'Off'}`; }
+  else if (act === 'aispeed') {
+    const keys = Object.keys(AI_SPEEDS), nx = keys[(keys.indexOf(LS.get('aiSpeed', 'normal')) + 1) % keys.length];
+    LS.set('aiSpeed', nx); b.querySelector('b').textContent = `AI speed: ${AI_SPEEDS[nx].label}`; SFX.play('tap');
+  }
   else if (act === 'resetstats') {
     if (b.dataset.sure) { LS.del('stats'); closeModal(); toast('Statistics reset.'); }
     else { b.dataset.sure = '1'; b.textContent = 'Tap again to delete all statistics'; b.classList.add('armed'); }
@@ -1743,9 +2029,20 @@ function showQuickRules(how) {
   const rb = $('modalBox').querySelector('[data-act="rulebook"]');
   if (rb) rb.onclick = () => window.open(LINKS.rulebook, '_blank', 'noopener');
 }
+function renderSound() {
+  const on = SFX.on;
+  $('sndBtn').innerHTML = on ? '&#128266;' : '&#128263;';
+  $('sndBtn').title = on ? 'Sound on (tap to mute)' : 'Sound off (tap to unmute)';
+  $('sndBtn').setAttribute('aria-pressed', String(on));
+}
+function toggleSound() { SFX.on = !SFX.on; renderSound(); SFX.play('select'); }
 function showMenu() {
+  const sp = LS.get('aiSpeed', 'normal');
   openModal('Menu', '<div class="picks" style="grid-template-columns:1fr">' + [
-    ['close', 'Resume', 'Back to the battle'], ['new', 'New game', 'Choose sides, opponent and star goal'], ['quick', 'Quick rules', 'One-screen summary'],
+    ['close', 'Resume', 'Back to the battle'],
+    ['sound', `Sound: ${SFX.on ? 'On' : 'Off'}`, 'Sound effects for moves, attacks and stars'],
+    ['aispeed', `AI speed: ${AI_SPEEDS[sp] ? AI_SPEEDS[sp].label : 'Normal'}`, 'How long the AI shows each action (Slow, Normal, Fast)'],
+    ['new', 'New game', 'Choose sides, opponent and star goal'], ['quick', 'Quick rules', 'One-screen summary'],
     ['stats', 'Statistics', 'Your record'], ['whatsnew', "What's new", 'Version history'], ['menu', 'Main menu', 'Your game is saved']
   ].map(([a, l, s]) => `<button data-act="${a}"><b>${l}</b><small>${s}</small></button>`).join('') + `<a class="lbtn" href="${LINKS.rulebook}" target="_blank" rel="noopener noreferrer">Read the rulebook &#8599;</a></div>`, [], {kind: 'menu'});
 }
@@ -1910,6 +2207,15 @@ function runTestPage() {
     G.sel = Object.keys(S.U).map(Number).find(id => S.U[id].o === S.cur); renderBoard(); G.sel = null;
     res.push({name: 'UI renders a mid-game position, the panel and a selection', ok: $('board').querySelectorAll('.unit').length > 0, err: ''});
   } catch (e) { res.push({name: 'UI renders a mid-game position, the panel and a selection', ok: false, err: e.message}); }
+  try {
+    let A = newGame({seed: 5, attacker: 0});
+    while (A.phase === 'setup') A = play(A, legalActions(A).find(a => a.t === 'deploy') || {t: 'end'});
+    const mv = legalActions(A).find(a => a.t === 'move'), B2 = play(A, mv), E = newEvents(A, B2);
+    let C = B2; while (slot(C) !== 'end') C = play(C, legalActions(C)[0]);
+    const D2 = play(C, {t: 'end'}), E2 = newEvents(C, D2);
+    res.push({name: 'Animation events: a move yields its move event; ending a turn yields only the end-of-turn events',
+      ok: E.length >= 1 && E[0].e === 'move' && E2.every(e => e.e === 'score' || e.e === 'win'), err: JSON.stringify([E, E2])});
+  } catch (e) { res.push({name: 'Animation events', ok: false, err: e.message}); }
   const tapName = 'UI taps: deploy 3 Gruntz via tray and board, Done twice hands over to the other human';
   const saved = localStorage.getItem('gruntz.save');
   try {
@@ -1961,6 +2267,7 @@ function startDemo(n) {
   }
   if (Q.has('dep') && canAct()) G.deploy = {k: Q.get('dep'), a: Q.get('att') || undefined};
   render();
+  if (Q.has('watch') && canAct()) { for (const a of aiPlan(S, 'easy')) S = play(S, a); nextTurn(); }
 }
 
 /* ---------- boot ---------- */
@@ -1968,6 +2275,9 @@ function boot() {
   $('undoBtn').onclick = onUndo;
   $('doneBtn').onclick = onDone;
   $('menuBtn').onclick = showMenu;
+  $('sndBtn').onclick = toggleSound;
+  renderSound();
+  document.addEventListener('pointerdown', () => { if (SFX.on && MODE === 'play') SFX.unlock(); }, {passive: true});
   $('trayBtns').addEventListener('click', e => { const b = e.target.closest('[data-dep]'); if (b && !b.disabled) onTray(b.dataset.dep); });
   $('modal').addEventListener('click', onModalClick);
   $('modalBack').addEventListener('click', () => { if ($('modal').dataset.closable) closeModal(); });
